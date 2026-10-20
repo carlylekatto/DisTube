@@ -109,7 +109,8 @@ export class DisTubeError<T extends string = any> extends Error {
    * @returns The created error
    */
   static withMessage<T extends string = any>(code: T, message: string, options?: { cause?: unknown }): DisTubeError<T> {
-    const error = new (DisTubeError as any)(code, message) as DisTubeError<T>;
+    // biome-ignore lint/complexity/noThisInStatic: the factory has to create an instance of the class it is called on
+    const error = new (this as any)(code, message) as DisTubeError<T>;
     error.message = message;
     if (options && "cause" in options) error.cause = options.cause;
     return error;

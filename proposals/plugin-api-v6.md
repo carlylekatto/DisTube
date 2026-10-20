@@ -253,10 +253,19 @@ export interface Disposable {
 export class StreamServer {
   /** Register a source. Returns a handle to unregister it. */
   register(source: string, handler: StreamHandler): Disposable;
-  /** Build the URL of a stream. */
-  url(source: string, path?: string, query?: Record<string, string | number | boolean>): string;
+  /**
+   * Build the URL of a stream. The server is started when it is not running
+   * yet, so the method is asynchronous.
+   */
+  url(
+    source: string,
+    path?: string,
+    query?: Record<string, string | number | boolean>,
+  ): Promise<string>;
   /** The base URL, e.g. "http://127.0.0.1:51234". */
   get baseUrl(): string;
+  /** The random prefix of the URLs. */
+  get prefix(): string;
   /** Close the server and dispose every handler. */
   close(): Promise<void>;
 }
@@ -336,12 +345,16 @@ getStreamURL(song) { return this.streams.url("youtube", `v/${song.id}`); }
 - secrets (the Monochrome AES key) can be passed through a header instead of
   the query string, using the `ffmpeg.args.input.headers` option
 
-**HTTP `Range` is not part of v6.** Answering a `Range` request requires the
-handler to be able to **resume** from an offset, which is possible for the
-Monochrome FLAC decryptor (AES-CTR is seekable) and for the SABR stream (at a
-segment boundary), but not for the Spotify PCM capture (it is generated live).
-Until every handler can do it, the server answers `200` and FFmpeg restarts
-the track from the beginning, like today.
+**HTTP `Range` is only partially supported in v6.** The server parses the
+`Range` header and gives the offset to the handler. When the handler returns
+the `size` of the stream, the server answers `206` with a `Content-Range`
+header, so a client that resumes gets the right bytes. When the handler does
+not know the size, the server answers `200` and the client restarts the track
+from the beginning, like today.
+
+Not every handler can resume from an offset: the Monochrome FLAC decryptor
+can (AES-CTR is seekable) and the SABR stream can (at a segment boundary), but
+the Spotify PCM capture cannot, because the audio is generated live.
 
 ### 4.4 Registry
 
@@ -571,8 +584,10 @@ The open questions have been answered:
    searchable plugin is tried in order, instead of only the first one.
 4. **The shared stream server is part of v6.** It removes three servers, the
    socket leaks and the `EADDRINUSE` crash.
-5. **HTTP `Range` is not part of v6.** It needs every handler to be able to
-   resume from an offset, which the Spotify PCM capture cannot do.
+5. **HTTP `Range` is only partially supported in v6.** The server parses the
+   range header and gives the offset to the handler, and it answers `206` when
+   the handler knows the size of the stream. The handlers that cannot resume
+   from an offset — the Spotify PCM capture — keep restarting the track.
 
 ## 8. Implementation order
 
@@ -587,7 +602,7 @@ The open questions have been answered:
 | 7 | `StreamServer`, `Plugin#streams`, `Disposable` | — |
 | 8 | The removal of the v5 deprecations | — |
 | 9 | The merge of `InfoExtractorPlugin` into `ExtractorPlugin`, and the fallback chain | 4 |
-| 10 | HTTP `Range` in the stream server | 7, and every handler being able to resume |
+| 10 | HTTP `Range` in every handler | 7, and every handler being able to resume |
 
 > The `coz` bot can already use step 3, 4 and 5 through the new
 > `musicError()` helper and the `source` field of the plugins, without

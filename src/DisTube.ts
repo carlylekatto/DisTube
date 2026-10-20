@@ -5,6 +5,7 @@ import { DisTubeHandler } from "./core/DisTubeHandler";
 import { Options } from "./core/DisTubeOptions";
 import { DisTubeVoiceManager } from "./core/manager/DisTubeVoiceManager";
 import { QueueManager } from "./core/manager/QueueManager";
+import { StreamServer } from "./core/StreamServer";
 import { DisTubeError } from "./struct/DisTubeError";
 import type { ExtractorPlugin } from "./struct/ExtractorPlugin";
 import { Playlist } from "./struct/Playlist";
@@ -156,6 +157,13 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
    */
   readonly plugins: DisTubePlugin[];
   /**
+   * The local HTTP server the plugins use to stream the audio.
+   *
+   * A plugin that cannot hand out a static URL to FFmpeg registers a handler on
+   * it, instead of running its own server.
+   */
+  readonly streams: StreamServer;
+  /**
    * DisTube ffmpeg audio filters
    */
   readonly filters: Filters;
@@ -179,6 +187,7 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
     this.queues = new QueueManager(this);
     this.filters = { ...defaultFilters, ...this.options.customFilters };
     this.plugins = [...this.options.plugins];
+    this.streams = new StreamServer();
     for (const p of this.plugins) p.init(this);
   }
 
@@ -597,6 +606,7 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
         this.debug(`[DisTube] Failed to destroy the plugin ${plugin.constructor.name}: ${errorMessage}`);
       }
     }
+    await this.streams.close();
     this.removeAllListeners();
   }
 }

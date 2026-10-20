@@ -1,3 +1,4 @@
+import type { StreamServer } from "../core/StreamServer";
 import type { DisTube } from "../DisTube";
 import type { Awaitable, PluginType } from "../type";
 import type { Song } from "./Song";
@@ -43,6 +44,15 @@ export abstract class Plugin {
       if (typeof alias === "string" && alias) names.add(alias.toLowerCase());
     }
     return [...names];
+  }
+  /**
+   * The local HTTP server of the DisTube instance.
+   *
+   * Register a handler on it when the plugin cannot hand out a static URL to
+   * FFmpeg, instead of running its own server.
+   */
+  get streams(): StreamServer {
+    return this.distube.streams;
   }
   /**
    * Get related songs from a supported url.

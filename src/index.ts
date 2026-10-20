@@ -9,6 +9,7 @@ export * from "./core/manager/DisTubeVoiceManager";
 export * from "./core/manager/FilterManager";
 export * from "./core/manager/GuildIdManager";
 export * from "./core/manager/QueueManager";
+export * from "./core/StreamServer";
 export { DisTube, DisTube as default } from "./DisTube";
 export * from "./struct/DisTubeError";
 export * from "./struct/ExtractorPlugin";
