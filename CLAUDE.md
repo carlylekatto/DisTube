@@ -63,8 +63,9 @@ src/
 
 ### Event-Driven Architecture
 - Uses `tiny-typed-emitter` for type-safe event emission
-- 11 event types: `addList`, `addSong`, `playSong`, `finishSong`, `error`, `debug`, `ffmpegDebug`, `empty`, `finish`, `initQueue`, `noRelated`, `disconnect`, `deleteQueue`
+- 13 event types: `addList`, `addSong`, `playSong`, `finishSong`, `error`, `debug`, `ffmpegDebug`, `empty`, `finish`, `initQueue`, `noRelated`, `disconnect`, `deleteQueue`
 - Queue emits events through parent DisTube instance
+- **The special `error` event never crashes the process**: both `DisTube` and `DisTubeVoice` override `emit()` and fall back to `handleUnhandledError()` (in `src/util.ts`) when no listener is registered. The behavior is configurable with `DisTubeOptions.unhandledError` (`"log"` | `"throw"` | `"ignore"`).
 
 ### Manager Pattern
 - `BaseManager<V>` provides Collection-based storage
@@ -88,11 +89,19 @@ DEFAULT_VOLUME = 50            // 0-100%
 JOIN_TIMEOUT_MS = 30_000       // 30 seconds
 RECONNECT_TIMEOUT_MS = 5_000   // 5 seconds
 RECONNECT_MAX_ATTEMPTS = 5     // Max rejoin attempts
+STUCK_THRESHOLD_MS = 10_000    // Max buffering time before a track is skipped
 HTTP_REDIRECT_CODES            // Set of redirect status codes
 MAX_REDIRECT_DEPTH = 5         // Max redirect follows
 ```
 
 Always use these constants instead of magic numbers.
+
+## Reliability Guarantees
+
+- **Unhandled errors**: emitting `error` without a listener must never throw. Use `handleUnhandledError()` from `src/util.ts`.
+- **Stuck tracks**: `DisTubeVoice` watches the `AudioPlayerStatus.Buffering` state. When a track stays buffered for more than `DisTubeOptions.stuckThreshold` ms, a `TRACK_STUCK` error is emitted and the queue skips the track.
+- **Filter changes restart the stream**: FFmpeg audio filters are applied at stream creation, so `FilterManager` calls `Queue#_restartStream()`. The restart keeps the playback position and never removes the current song from the queue (`playSong(queue, emitPlaySong, { keepSongOnError: true })`).
+- **Cleanup**: call `distube.destroy()` to stop every queue, leave every voice channel and remove every listener.
 
 ## Coding Conventions
 

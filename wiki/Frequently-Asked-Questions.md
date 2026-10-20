@@ -50,7 +50,7 @@ All plans, even **4$** plan, use the below specification:
 
 #### Solution:
 
-- Check the FFmpeg log to check why it happens with [`ffmpegDebug`](https://distube.js.org/classes/DisTube.html#ffmpegDebug) event
+- Check the FFmpeg log to check why it happens with [`ffmpegDebug`](https://distube.js.org/classes/DisTube.html#ffmpegdebug) event
 
 ```ts
 import { Events } from "distube";

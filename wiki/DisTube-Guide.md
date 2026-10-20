@@ -1,7 +1,7 @@
 # DisTube Guide
 
 > [!NOTE]
-> This guide follows the [discordjs.guide notation](https://discordjs.guide/additional-info/notation.html).
+> This guide follows the [discordjs.guide notation](https://discordjs.guide/additional-info/notation).
 
 ## Introduction
 

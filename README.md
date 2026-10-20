@@ -35,6 +35,7 @@ DisTube is a comprehensive Discord music bot library built for [Discord.js](http
 | --- | --- |
 | [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/skick1234/DisTube) | Learn DisTube with AI-powered assistance. |
 | [Installation](https://deepwiki.com/skick1234/DisTube/Installation) | Detailed requirements and setup guide. |
+| [Guide](https://github.com/skick1234/DisTube/wiki) | Step-by-step handbook: installation, commands, plugins, filters and FAQ. |
 | [API Reference](https://distube.js.org/) | Complete technical documentation. |
 | [Discord Support](https://discord.gg/feaDd9h) | Join our community for help and discussion. |
 
@@ -42,6 +43,11 @@ DisTube is a comprehensive Discord music bot library built for [Discord.js](http
 
 ```bash
 npm install distube @discordjs/voice @discordjs/opus
+```
+
+```bash
+# Bun is recommended
+bun add distube @discordjs/voice @discordjs/opus
 ```
 
 ```javascript
@@ -62,7 +68,7 @@ const distube = new DisTube(client, {
 });
 
 distube.on('playSong', (queue, song) =>
-  queue.textChannel.send(`Playing \`${song.name}\` - \`${song.formatDuration()}\``)
+  queue.textChannel.send(`Playing \`${song.name}\` - \`${song.formattedDuration}\``)
 );
 
 client.on('messageCreate', message => {
