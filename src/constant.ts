@@ -21,6 +21,12 @@ export const RECONNECT_TIMEOUT_MS = 5_000;
 export const RECONNECT_MAX_ATTEMPTS = 5;
 
 /**
+ * Default time (in milliseconds) a track may stay in the "buffering" state
+ * before it is considered stuck and gets skipped.
+ */
+export const STUCK_THRESHOLD_MS = 10_000;
+
+/**
  * HTTP redirect status codes
  */
 export const HTTP_REDIRECT_CODES = new Set([301, 302, 303, 307, 308]);
@@ -55,4 +61,6 @@ export const defaultOptions = {
   emitAddSongWhenCreatingQueue: true,
   emitAddListWhenCreatingQueue: true,
   joinNewVoiceChannel: true,
+  unhandledError: "log",
+  stuckThreshold: STUCK_THRESHOLD_MS,
 } satisfies DisTubeOptions;

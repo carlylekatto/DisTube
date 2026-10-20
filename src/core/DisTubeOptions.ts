@@ -1,7 +1,16 @@
 import { defaultOptions } from "../constant";
 import { DisTubeError } from "../struct/DisTubeError";
-import type { DisTubeOptions, DisTubePlugin, FFmpegArgs, FFmpegOptions, Filters } from "../type";
+import type {
+  DisTubeOptions,
+  DisTubePlugin,
+  FFmpegArgs,
+  FFmpegOptions,
+  Filters,
+  UnhandledErrorBehavior,
+} from "../type";
 import { checkInvalidKey } from "../util";
+
+const UNHANDLED_ERROR_BEHAVIORS: readonly UnhandledErrorBehavior[] = ["log", "throw", "ignore"];
 
 export class Options {
   plugins: DisTubePlugin[];
@@ -12,6 +21,8 @@ export class Options {
   emitAddSongWhenCreatingQueue: boolean;
   emitAddListWhenCreatingQueue: boolean;
   joinNewVoiceChannel: boolean;
+  unhandledError: UnhandledErrorBehavior;
+  stuckThreshold: number;
   ffmpeg: FFmpegOptions;
   constructor(options: DisTubeOptions) {
     if (typeof options !== "object" || Array.isArray(options)) {
@@ -26,6 +37,8 @@ export class Options {
     this.emitAddSongWhenCreatingQueue = opts.emitAddSongWhenCreatingQueue;
     this.emitAddListWhenCreatingQueue = opts.emitAddListWhenCreatingQueue;
     this.joinNewVoiceChannel = opts.joinNewVoiceChannel;
+    this.unhandledError = opts.unhandledError;
+    this.stuckThreshold = opts.stuckThreshold;
     this.ffmpeg = this.#ffmpegOption(options);
     checkInvalidKey(opts, this, "DisTubeOptions");
     this.#validateOptions();
@@ -40,8 +53,8 @@ export class Options {
       "emitAddSongWhenCreatingQueue",
       "emitAddListWhenCreatingQueue",
     ]);
-    const numberOptions = new Set();
-    const stringOptions = new Set();
+    const numberOptions = new Set(["stuckThreshold"]);
+    const stringOptions = new Set(["unhandledError"]);
     const objectOptions = new Set(["customFilters", "ffmpeg"]);
     const optionalOptions = new Set(["customFilters"]);
 
@@ -60,6 +73,9 @@ export class Options {
       } else if (stringOptions.has(key)) {
         if (typeof value !== "string") {
           throw new DisTubeError("INVALID_TYPE", "string", value, `DisTubeOptions.${key}`);
+        }
+        if (!UNHANDLED_ERROR_BEHAVIORS.includes(value as UnhandledErrorBehavior)) {
+          throw new DisTubeError("INVALID_TYPE", UNHANDLED_ERROR_BEHAVIORS, value, `DisTubeOptions.${key}`);
         }
       } else if (objectOptions.has(key)) {
         if (typeof value !== "object" || Array.isArray(value)) {

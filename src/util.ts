@@ -14,7 +14,7 @@ import { Constants, GatewayIntentBits, IntentsBitField, SnowflakeUtil } from "di
 import { DisTubeVoice } from "./core/DisTubeVoice";
 import { DisTubeError } from "./struct/DisTubeError";
 import { Queue } from "./struct/Queue";
-import type { GuildIdResolvable } from "./type";
+import type { GuildIdResolvable, UnhandledErrorBehavior } from "./type";
 
 const formatInt = (int: number) => (int < 10 ? `0${int}` : int);
 
@@ -174,6 +174,30 @@ export function isNsfwChannel(channel?: GuildTextBasedChannel): boolean {
 
 export type Falsy = undefined | null | false | 0 | "";
 export const isTruthy = <T>(x: T | Falsy): x is T => Boolean(x);
+
+/**
+ * Handle an error that was emitted through the special `"error"` event without
+ * any listener.
+ *
+ * Node.js throws an `ERR_UNHANDLED_ERROR` in that situation, which crashes the
+ * whole process. DisTube handles it gracefully instead.
+ * @param error    - The error
+ * @param behavior - The behavior to apply. Defaults to `"log"`.
+ * @throws The given error when the behavior is `"throw"`
+ */
+export function handleUnhandledError(error: Error, behavior: UnhandledErrorBehavior = "log"): void {
+  if (behavior === "throw") throw error;
+  if (behavior === "ignore") return;
+  process.emitWarning(
+    "The 'error' event was emitted but there is no listener for it. " +
+      "Add a listener with `distube.on(Events.ERROR, (error, queue, song) => { ... })` " +
+      "to handle DisTube errors, or set `unhandledError` to 'throw' to restore the default behavior.",
+    {
+      code: "DIS_TUBE_UNHANDLED_ERROR",
+      detail: error?.stack ?? error?.message ?? String(error),
+    },
+  );
+}
 
 export const checkEncryptionLibraries = async () => {
   if (await import("node:crypto").then(m => m.getCiphers().includes("aes-256-gcm"))) return true;

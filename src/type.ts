@@ -21,6 +21,14 @@ import type {
 
 export type Awaitable<T = any> = T | PromiseLike<T>;
 
+/**
+ * Behavior when the {@link Events.ERROR} event is emitted but nobody listens to it.
+ * - `log` (default): the error is logged to the console instead of crashing the process
+ * - `throw`: the error is re-thrown (Node.js default behavior)
+ * - `ignore`: the error is silently discarded
+ */
+export type UnhandledErrorBehavior = "log" | "throw" | "ignore";
+
 export enum Events {
   ERROR = "error",
   ADD_LIST = "addList",
@@ -42,6 +50,7 @@ export type DisTubeEvents = {
   [Events.ADD_SONG]: [queue: Queue, song: Song];
   [Events.DELETE_QUEUE]: [queue: Queue];
   [Events.DISCONNECT]: [queue: Queue];
+  [Events.EMPTY]: [queue: Queue];
   [Events.ERROR]: [error: Error, queue: Queue, song: Song | undefined];
   [Events.FFMPEG_DEBUG]: [debug: string];
   [Events.DEBUG]: [debug: string];
@@ -144,6 +153,22 @@ export type DisTubeOptions = {
    * method
    */
   joinNewVoiceChannel?: boolean;
+  /**
+   * Behavior when the {@link Events.ERROR} event is emitted but nobody listens to it.
+   *
+   * By default (`"log"`), the error is logged to the console instead of crashing the
+   * process, which is the Node.js default behavior for the special `"error"` event.
+   * @default "log"
+   */
+  unhandledError?: UnhandledErrorBehavior;
+  /**
+   * Time (in milliseconds) a track may stay in the "buffering" state before it is
+   * considered stuck and gets skipped automatically.
+   *
+   * Set to `0` to disable the stuck-track detection.
+   * @default 10000
+   */
+  stuckThreshold?: number;
   /**
    * FFmpeg options
    */
@@ -249,9 +274,10 @@ export interface JumpOptions {
 
 export interface PlayOptions<T = unknown> extends PlayHandlerOptions, ResolveOptions<T> {
   /**
-   * Called message (For built-in search events. If this is a {@link
-   * https://developer.mozilla.org/en-US/docs/Glossary/Falsy | falsy value}, it will
-   * play the first result instead)
+   * The message that triggered the command.
+   *
+   * It is used as the default {@link PlayHandlerOptions.textChannel} of the queue
+   * when no `textChannel` is provided.
    */
   message?: Message;
 }

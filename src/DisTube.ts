@@ -23,6 +23,7 @@ import type {
 import { Events, type RepeatMode } from "./type";
 import {
   checkIntents,
+  handleUnhandledError,
   isClientInstance,
   isMemberInstance,
   isMessageInstance,
@@ -53,7 +54,7 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
   static readonly [Events.ADD_SONG]: (queue: Queue, song: Song) => Awaitable;
   /**
    * @event
-   * Emitted when a {@link Queue} is deleted with any reasons.
+   * Emitted when the {@link Queue} is deleted with any reasons.
    * @param queue - The guild queue
    */
   static readonly [Events.DELETE_QUEUE]: (queue: Queue) => Awaitable;
@@ -63,6 +64,12 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
    * @param queue - The guild queue
    */
   static readonly [Events.DISCONNECT]: (queue: Queue) => Awaitable;
+  /**
+   * @event
+   * Emitted when the {@link Queue} runs out of songs to play.
+   * @param queue - The guild queue
+   */
+  static readonly [Events.EMPTY]: (queue: Queue) => Awaitable;
   /**
    * @event
    * Emitted when DisTube encounters an error while playing songs.
@@ -109,8 +116,9 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
    * Emitted when {@link Queue#autoplay} is `true`, {@link Queue#songs} is empty, and
    * DisTube cannot find related songs to play.
    * @param queue - The guild queue
+   * @param error - The error that occurred while looking for related songs
    */
-  static readonly [Events.NO_RELATED]: (queue: Queue) => Awaitable;
+  static readonly [Events.NO_RELATED]: (queue: Queue, error: DisTubeError) => Awaitable;
   /**
    * @event
    * Emitted when DisTube play a song.
@@ -156,7 +164,9 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
    */
   constructor(client: Client, opts: DisTubeOptions = {}) {
     super();
-    this.setMaxListeners(1);
+    // Do not limit the number of listeners: bots commonly register several
+    // listeners for the same event (e.g. one per guild).
+    this.setMaxListeners(0);
     if (!isClientInstance(client)) throw new DisTubeError("INVALID_TYPE", "Discord.Client", client, "client");
     this.client = client;
     checkIntents(client.options);
@@ -167,6 +177,34 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
     this.filters = { ...defaultFilters, ...this.options.customFilters };
     this.plugins = [...this.options.plugins];
     for (const p of this.plugins) p.init(this);
+  }
+
+  /**
+   * Emit an event of the DisTube instance.
+   *
+   * The special {@link Events.ERROR} event is handled differently than the other
+   * events: Node.js throws an `ERR_UNHANDLED_ERROR` when the special `"error"`
+   * event is emitted without any listener, which crashes the whole process.
+   *
+   * Instead of crashing, DisTube follows {@link DisTubeOptions.unhandledError}
+   * (`"log"` by default).
+   * @param event - The event name
+   * @param args  - The event arguments
+   */
+  override emit<U extends keyof TypedDisTubeEvents>(event: U, ...args: Parameters<TypedDisTubeEvents[U]>): boolean {
+    if (event === Events.ERROR && this.listenerCount(Events.ERROR) === 0) {
+      this.#handleUnhandledError(args[0] as Error);
+      return false;
+    }
+    return super.emit(event, ...args);
+  }
+
+  /**
+   * Handle an {@link Events.ERROR} event that has no listener.
+   * @param error - The error
+   */
+  #handleUnhandledError(error: Error) {
+    handleUnhandledError(error, this.options?.unhandledError ?? "log");
   }
 
   static get version() {
@@ -464,6 +502,35 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
    */
   debug(message: string) {
     this.emit(Events.DEBUG, message);
+  }
+
+  /**
+   * Destroy the DisTube instance.
+   *
+   * Stops every queue, leaves every voice channel and removes every listener.
+   * Call it before your Discord.js client is destroyed to release all resources.
+   */
+  async destroy(): Promise<void> {
+    this.debug("[DisTube] Destroying the DisTube instance...");
+    const queues = [...this.queues.collection.values()];
+    for (const queue of queues) {
+      try {
+        await queue.stop();
+      } catch (e: unknown) {
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        this.debug(`[DisTube] Failed to stop the queue ${queue.id}: ${errorMessage}`);
+      }
+    }
+    const voices = [...this.voices.collection.values()];
+    for (const voice of voices) {
+      try {
+        voice.leave();
+      } catch (e: unknown) {
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        this.debug(`[DisTube] Failed to leave the voice connection ${voice.id}: ${errorMessage}`);
+      }
+    }
+    this.removeAllListeners();
   }
 }
 

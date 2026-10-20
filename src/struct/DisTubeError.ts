@@ -42,6 +42,7 @@ const ERROR_MESSAGES = {
   NO_UP_NEXT: "There is no up next song",
   NO_SONG_POSITION: "Does not have any song at this position",
   NO_PLAYING_SONG: "There is no playing song in the queue",
+  TRACK_STUCK: "The track is stuck and not producing any audio",
   NO_EXTRACTOR_PLUGIN: "There is no extractor plugin in the DisTubeOptions.plugins, please add one for searching songs",
   NO_RELATED: "Cannot find any related songs",
   CANNOT_PLAY_RELATED: "Cannot play the related song",

@@ -13,7 +13,7 @@ import { TypedEmitter } from "tiny-typed-emitter";
 import { JOIN_TIMEOUT_MS, RECONNECT_MAX_ATTEMPTS, RECONNECT_TIMEOUT_MS } from "../constant";
 import { DisTubeError } from "../struct/DisTubeError";
 import type { DisTubeVoiceEvents } from "../type";
-import { checkEncryptionLibraries, isSupportedVoiceChannel } from "../util";
+import { checkEncryptionLibraries, handleUnhandledError, isSupportedVoiceChannel } from "../util";
 import type { DisTubeStream } from "./DisTubeStream";
 import type { DisTubeVoiceManager } from "./manager/DisTubeVoiceManager";
 
@@ -31,6 +31,10 @@ export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
   pausingStream?: DisTubeStream;
   #channel!: VoiceBasedChannel;
   #volume = 100;
+  /**
+   * Timer used to detect a track that is stuck in the "buffering" state.
+   */
+  #stuckTimer?: NodeJS.Timeout;
   constructor(voiceManager: DisTubeVoiceManager, channel: VoiceBasedChannel) {
     super();
     /**
@@ -42,7 +46,14 @@ export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
     this.voices.add(this.id, this);
     this.audioPlayer = createAudioPlayer()
       .on(AudioPlayerStatus.Idle, oldState => {
+        this.#clearStuckTimer();
         if (oldState.status !== AudioPlayerStatus.Idle) this.emit("finish");
+      })
+      .on(AudioPlayerStatus.Buffering, () => {
+        this.#startStuckTimer();
+      })
+      .on(AudioPlayerStatus.Playing, () => {
+        this.#clearStuckTimer();
       })
       .on("error", (error: NodeJS.ErrnoException) => {
         if (this.emittedError) return;
@@ -121,6 +132,10 @@ export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
       guildId: this.id,
       adapterCreator: channel.guild.voiceAdapterCreator,
       group: channel.client.user?.id,
+      // DAVE is the end-to-end encryption protocol used by Discord.
+      // It is enabled explicitly so that a change of the upstream default
+      // can never silently disable the encryption.
+      daveEncryption: true,
     });
   }
   /**
@@ -233,6 +248,50 @@ export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
     } else {
       this.audioPlayer.unpause();
     }
+  }
+  /**
+   * Emit an event of the voice connection.
+   *
+   * The special `"error"` event never crashes the process when there is no
+   * listener for it, even when the voice connection is used outside of a
+   * {@link Queue}.
+   * @param event - The event name
+   * @param args  - The event arguments
+   */
+  override emit<U extends keyof DisTubeVoiceEvents>(event: U, ...args: Parameters<DisTubeVoiceEvents[U]>): boolean {
+    if (event === "error" && this.listenerCount("error") === 0) {
+      handleUnhandledError(args[0] as Error, this.voices.options?.unhandledError ?? "log");
+      return false;
+    }
+    return super.emit(event, ...args);
+  }
+
+  /**
+   * Start the timer that detects a track stuck in the "buffering" state.
+   *
+   * When the track does not start playing within
+   * {@link DisTubeOptions.stuckThreshold} milliseconds, it is reported as an error
+   * so that the queue can skip it.
+   */
+  #startStuckTimer() {
+    const threshold = this.voices.options.stuckThreshold;
+    if (typeof threshold !== "number" || threshold <= 0) return;
+    this.#clearStuckTimer();
+    this.#stuckTimer = setTimeout(() => {
+      this.#stuckTimer = undefined;
+      if (this.emittedError) return;
+      this.emittedError = true;
+      this.emit("error", new DisTubeError("TRACK_STUCK"));
+    }, threshold);
+    this.#stuckTimer.unref?.();
+  }
+  /**
+   * Clear the stuck-track detection timer.
+   */
+  #clearStuckTimer() {
+    if (!this.#stuckTimer) return;
+    clearTimeout(this.#stuckTimer);
+    this.#stuckTimer = undefined;
   }
   /**
    * Whether the bot is self-deafened
