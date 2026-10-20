@@ -92,6 +92,7 @@ export class QueueManager extends GuildIdManager<Queue> {
 
       if (queue.songs.length === 0) {
         this.debug(`[${queue.id}] Queue is empty, stopping...`);
+        this.emit(Events.EMPTY, queue);
         if (!queue.autoplay) this.emit(Events.FINISH, queue);
         queue.remove();
         return;
@@ -134,8 +135,9 @@ export class QueueManager extends GuildIdManager<Queue> {
    * Play a song on voice connection with queue properties
    * @param queue         - The guild queue to play
    * @param emitPlaySong  - Whether or not emit {@link Events.PLAY_SONG} event
+   * @param options       - Optional options
    */
-  async playSong(queue: Queue, emitPlaySong = true) {
+  async playSong(queue: Queue, emitPlaySong = true, options?: { keepSongOnError?: boolean }) {
     if (!queue) return;
     if (queue.stopped || !queue.songs.length) {
       await queue.stop();
@@ -168,7 +170,14 @@ export class QueueManager extends GuildIdManager<Queue> {
       if (emitPlaySong) this.emit(Events.PLAY_SONG, queue, song);
     } catch (e: unknown) {
       const error = e instanceof Error ? e : new Error(String(e));
-      this.#handlePlayingError(queue, error);
+      if (options?.keepSongOnError) {
+        // The stream is only being restarted (e.g. after a filter change):
+        // the current song must stay in the queue even if the restart failed.
+        this.debug(`[${queue.id}] Error while restarting the stream: ${error.stack || error.message}`);
+        this.emitError(error, queue, queue.songs[0]);
+        return;
+      }
+      await this.#handlePlayingError(queue, error);
     }
   }
 }

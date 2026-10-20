@@ -469,4 +469,25 @@ export class Queue extends DisTubeBase {
     this.playing = true;
     return this.queues.playSong(this, emitPlaySong);
   }
+  /**
+   * Restart the current stream with the current FFmpeg arguments, keeping the
+   * playback position.
+   *
+   * The FFmpeg audio filters are applied when the stream is created, so the stream
+   * has to be recreated whenever the filters change.
+   *
+   * Unlike a regular playback error, a failure while restarting the stream does
+   * **not** remove the current song from the queue.
+   * @internal
+   */
+  async _restartStream(): Promise<void> {
+    await this._taskQueue.queuing(true);
+    try {
+      if (this.stopped || !this.songs.length) return;
+      this._beginTime = this.currentTime;
+      await this.queues.playSong(this, false, { keepSongOnError: true });
+    } finally {
+      this._taskQueue.resolve();
+    }
+  }
 }

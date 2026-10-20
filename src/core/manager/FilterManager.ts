@@ -29,8 +29,13 @@ export class FilterManager extends BaseManager<Filter> {
   }
 
   #apply() {
-    this.queue._beginTime = this.queue.currentTime;
-    this.queue.play(false);
+    // The FFmpeg audio filters are applied when the stream is created, so the
+    // stream has to be restarted. The restart never interrupts the playback for
+    // good: a failure keeps the current song in the queue.
+    void this.queue._restartStream().catch((e: unknown) => {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      this.queue.debug(`[${this.queue.id}] Failed to apply the filters: ${errorMessage}`);
+    });
   }
 
   /**
