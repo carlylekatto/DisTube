@@ -100,13 +100,16 @@ export class DisTubeError<T extends string = any> extends Error {
    * when you need to tell the user what exactly went wrong, or when you want to
    * keep the original error as the `cause` of the error.
    *
+   * It is polymorphic: calling it on a subclass creates an instance of that
+   * subclass.
+   *
    * @param code    - The error code
    * @param message - The custom message
    * @param options - Optional options
    * @returns The created error
    */
   static withMessage<T extends string = any>(code: T, message: string, options?: { cause?: unknown }): DisTubeError<T> {
-    const error = new DisTubeError(code as never, message as never);
+    const error = new (DisTubeError as any)(code, message) as DisTubeError<T>;
     error.message = message;
     if (options && "cause" in options) error.cause = options.cause;
     return error;

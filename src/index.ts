@@ -24,6 +24,7 @@ export * from "./struct/PlayableExtractorPlugin";
 export { PlayableExtractorPlugin as PlayableExtratorPlugin } from "./struct/PlayableExtractorPlugin";
 export * from "./struct/Playlist";
 export * from "./struct/Plugin";
+export * from "./struct/PluginError";
 export * from "./struct/Queue";
 export * from "./struct/SearchResult";
 export * from "./struct/Song";
