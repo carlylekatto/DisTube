@@ -193,45 +193,147 @@ export abstract class Plugin {
 }
 ```
 
-### 4.3 Stream
+### 4.3 Stream — one shared local server
+
+The v5 contract only accepts a URL, so a plugin that cannot hand out a static
+URL has to run its own HTTP server. The `coz` bot runs three of them: the
+YouTube SABR proxy, the Spotify PCM proxy and the Monochrome FLAC decryptor.
+
+That has three problems:
+
+- every server has to be closed by hand, and a hot reload that replaces a
+  plugin instance without disposing it leaks the socket
+- a fixed port makes the next instance fail with `EADDRINUSE`, which is an
+  unhandled `error` event and crashes the bot
+- none of them support HTTP `Range`, so FFmpeg's `reconnect` restarts the
+  track from the beginning instead of resuming it
+
+DisTube therefore provides **one** server, and the plugins register their
+handlers on it:
 
 ```ts
-export abstract class PlayableExtractorPlugin extends Plugin {
-  /**
-   * Get the playable stream of a song.
-   *
-   * Return a URL, or a readable stream. The default implementation calls
-   * getStreamURL().
-   */
-  async getStream<T>(song: Song<T>): Promise<Readable | string> {
-    return this.getStreamURL(song);
+export interface StreamRequest {
+  /** The path after the source, e.g. "v/abc123". */
+  path: string;
+  /** The parsed query parameters. */
+  query: URLSearchParams;
+  /** The byte offset the client asked for, or 0. */
+  offset: number;
+  /** Aborted when the client disconnects. */
+  signal: AbortSignal;
+}
+
+export interface StreamResponse {
+  /** The audio bytes. */
+  body: Readable | AsyncIterable<Uint8Array>;
+  /** The content type. Default: "application/octet-stream". */
+  contentType?: string;
+  /** The total size of the stream, when it is known. */
+  size?: number;
+  /** Extra headers. */
+  headers?: Record<string, string | number>;
+}
+
+export type StreamHandler = (
+  req: StreamRequest,
+) => Promise<StreamResponse | null | void> | StreamResponse | null | void;
+
+export interface Disposable {
+  dispose(): void;
+}
+
+export class StreamServer {
+  /** Register a source. Returns a handle to unregister it. */
+  register(source: string, handler: StreamHandler): Disposable;
+  /** Build the URL of a stream. */
+  url(source: string, path?: string, query?: Record<string, string | number | boolean>): string;
+  /** The base URL, e.g. "http://127.0.0.1:51234". */
+  get baseUrl(): string;
+  /** Close the server and dispose every handler. */
+  close(): Promise<void>;
+}
+```
+
+```ts
+// On the plugin, like `this.distube`
+get streams(): StreamServer;
+```
+
+The URL scheme is `http://127.0.0.1:<port>/<source>/<path>?<query>`.
+
+**How a plugin uses it:**
+
+```ts
+class YoutubePlugin extends ExtractorPlugin {
+  #route?: Disposable;
+
+  init(distube: DisTube) {
+    super.init(distube);
+    this.#route = distube.streams.register("youtube", async ({ path, offset, signal }) => {
+      const videoId = path.replace(/^v\//, "");
+      const { body, contentType, size } = await this.#sabrAudio(videoId, { offset, signal });
+      return { body, contentType, size };
+    });
   }
 
-  abstract getStreamURL<T>(song: Song<T>): Awaitable<string>;
+  destroy() {
+    this.#route?.dispose();
+  }
+
+  getStreamURL(song: Song) {
+    return this.streams.url("youtube", `v/${song.id}`);
+  }
 }
 ```
 
-Returning a `Readable` removes the need for a local HTTP server:
+The plugin does not create, bind or close a server any more: DisTube owns it,
+and `DisTube#destroy()` closes it.
 
-```ts
-// Before: the plugin runs an HTTP server and hands FFmpeg a 127.0.0.1 URL
-async getStreamURL(song) {
-  return `http://127.0.0.1:${this.port}/stream?v=${song.id}`;
-}
+**What it solves**
 
-// After: the plugin hands the stream over directly
-async getStream(song) {
-  return this.sabrStream(song.id);   // a Readable
+| Problem | Before | After |
+| --- | --- | --- |
+| Number of servers | 3 | 1 |
+| Socket leak on hot reload | yes | no, `DisTube#destroy()` closes it |
+| `EADDRINUSE` on reload | yes (fixed port) | no (ephemeral port) |
+| FFmpeg `reconnect` | restarts the track | resumes, once `Range` is supported |
+| Secret in the URL (`?key=`) | yes | can be moved to a header |
+| URL scheme | one per plugin | one for everybody |
+
+**It is additive.** `getStreamURL()` keeps working exactly as before, so a
+plugin that keeps its own server is not broken. The migration is three lines:
+
+```js
+// Before
+init(distube) {
+  this.server = createServer(...);
+  this.server.listen(this.port, "127.0.0.1", cb);
 }
+destroy() { this.server.close(); }
+getStreamURL(song) { return `http://127.0.0.1:${this.port}/stream?v=${song.id}`; }
+
+// After
+init(distube) {
+  this.#route = distube.streams.register("youtube", handler);
+}
+destroy() { this.#route.dispose(); }
+getStreamURL(song) { return this.streams.url("youtube", `v/${song.id}`); }
 ```
 
-`DisTubeStream` accepts a `Readable` in addition to a URL. The FFmpeg process
-then reads from the pipe instead of opening a socket.
+**Security**
 
-> **Trade-off:** a `Readable` cannot be replayed, and FFmpeg cannot `seek` on
-> it. The seek offset is still applied through the FFmpeg `-ss` argument, which
-> works on a pipe. Plugins that need a seekable source (a local file) keep
-> returning a URL.
+- the server binds `127.0.0.1` only
+- an optional random path prefix makes the URL unguessable for the other local
+  processes
+- secrets (the Monochrome AES key) can be passed through a header instead of
+  the query string, using the `ffmpeg.args.input.headers` option
+
+**HTTP `Range` is not part of v6.** Answering a `Range` request requires the
+handler to be able to **resume** from an offset, which is possible for the
+Monochrome FLAC decryptor (AES-CTR is seekable) and for the SABR stream (at a
+segment boundary), but not for the Spotify PCM capture (it is generated live).
+Until every handler can do it, the server answers `200` and FFmpeg restarts
+the track from the beginning, like today.
 
 ### 4.4 Registry
 
@@ -360,13 +462,11 @@ class YoutubePlugin extends ExtractorPlugin {
   async init(distube) {
     super.init(distube);
     await this.createSession();
-    this.server = createServer(...);
-    await new Promise(resolve => this.server.listen(0, "127.0.0.1", resolve));
+    this.#route = distube.streams.register("youtube", handler);
   }
 
   async destroy() {
-    clearInterval(this.poTokenTimer);
-    await new Promise(resolve => this.server.close(resolve));
+    this.#route?.dispose();
   }
 }
 ```
@@ -374,15 +474,20 @@ class YoutubePlugin extends ExtractorPlugin {
 ### 5.3 Stream
 
 ```js
-// Before: a local HTTP server
-async getStreamURL(song) {
-  return `http://127.0.0.1:${this.port}/stream?v=${song.id}`;
+// Before: a local HTTP server per plugin
+init(distube) {
+  this.server = createServer(...);
+  this.server.listen(4242, "127.0.0.1", cb);
 }
+destroy() { this.server.close(); }
+getStreamURL(song) { return `http://127.0.0.1:${this.port}/stream?v=${song.id}`; }
 
-// After: the stream itself
-async getStream(song) {
-  return this.sabrStream(song.id);
+// After: the shared server of DisTube
+init(distube) {
+  this.#route = distube.streams.register("youtube", handler);
 }
+destroy() { this.#route.dispose(); }
+getStreamURL(song) { return this.streams.url("youtube", `v/${song.id}`); }
 ```
 
 ### 5.4 Cross-plugin dependencies
@@ -415,14 +520,16 @@ throw musicError("UNSUPPORTED_URL", "Không thể nhận diện URL Spotify");
 | `Plugin#destroy()` added | No | New optional method with a default no-op |
 | `Plugin#init()` may be async | No | `DisTube.create()` awaits it; the constructor keeps the old behaviour |
 | `Plugin#source` / `#aliases` added | No | New optional fields |
+| `Plugin#streams` added | No | New optional getter |
 | `ExtractorPlugin#search()` added | No | Default implementation delegates to `searchSong()` |
 | `SearchOptions` added | No | New type |
 | `DisTube#search()` added | No | New method |
+| `StreamServer` added | No | New class; `getStreamURL()` keeps working without it |
 | `PluginError` / `PluginErrorCode` added | No | New code; the existing codes keep working |
 | `SongInfo#metadata` | No | Already merged in `feat/v6-foundation` |
 | `DisTubeError.withMessage()` | No | Already merged in `feat/v6-foundation` |
-| `getStream()` added | No | Default implementation delegates to `getStreamURL()` |
 | `Song#stream` accepts a `Readable` | No | The URL path is unchanged |
+| The merge of `InfoExtractorPlugin` into `ExtractorPlugin` | **Yes** | The class stays as a deprecated alias in v6 |
 | Removal of the v5 deprecations | **Yes** | Already announced for v6.0 |
 
 **Every item is additive.** The only breaking change in v6 stays the one that
@@ -430,29 +537,28 @@ was already announced: the removal of the deprecated shortcut methods.
 
 ---
 
-## 7. Open questions
+## 7. Decisions
 
-1. **Should `search()` return `Song[]` or a dedicated `SearchResultItem[]`?**
-   `Song[]` keeps one type, but it forces the plugin to build a full `Song`
-   (metadata, uploader, thumbnail) for every result, even when the caller only
-   wants a list to display.
-2. **Should the source routing syntax be part of the core?** The `<source>:`
-   prefix is a `coz` convention, but it is useful for every bot that has more
-   than one source. It could also stay in the bot and only use the `source`
-   field of the plugin.
-3. **Should `getStream()` be the only contract?** `getStreamURL()` could be
-   removed and replaced by `getStream()`, but a URL is still the simplest thing
-   for a plain HTTP source (and for a local file).
-4. **How to expose the "I am not playable by myself" role?** Today
-   `InfoExtractorPlugin` is a separate class, and the resolution path filters
-   on `plugin.type`. A single `ExtractorPlugin` with a
-   `playable: false` flag, or a `resolveTo()` method that returns a playable
-   song, would be simpler. The `coz` Lyra and Monochrome plugins both need
-   this: their audio is really YouTube's.
-5. **Should the `Playlist` model gain a `selectedTrack`?** The `coz` bot
-   cannot express "play the playlist starting from the track N".
+The open questions have been answered:
 
----
+1. **`search()` returns `Song[]`.** The search APIs of every source already
+   return everything a `Song` needs, so it costs nothing, and it removes the
+   second round trip: today a bot has to search, throw the result away, keep
+   the URL and resolve it again to play it. `SearchResult` carries the songs
+   and, optionally, a playlist.
+2. **The source routing syntax stays in the bot.** The core provides the
+   capability — `plugin.source`, `plugin.aliases`, `distube.getPlugin()` and
+   the `source` option — but the `<source>:` prefix is a user interface
+   decision, not a library one. The bot keeps one parser instead of eight.
+3. **`InfoExtractorPlugin` and `PlayableExtractorPlugin` are merged into
+   `ExtractorPlugin`.** The distinction is replaced by the `playable` flag and
+   by the duck-typed `createSearchQuery()`, and the resolution path stops
+   filtering on `plugin.type`. The proxy also gets a **fallback chain**: every
+   searchable plugin is tried in order, instead of only the first one.
+4. **The shared stream server is part of v6.** It removes three servers, the
+   socket leaks and the `EADDRINUSE` crash.
+5. **HTTP `Range` is not part of v6.** It needs every handler to be able to
+   resume from an offset, which the Spotify PCM capture cannot do.
 
 ## 8. Implementation order
 
@@ -462,8 +568,13 @@ was already announced: the removal of the deprecated shortcut methods.
 | 2 | `SongInfo#metadata`, `DisTubeError.withMessage()` | — (done in `feat/v6-foundation`) |
 | 3 | `Plugin#source` / `#aliases`, `distube.getPlugin()` | — |
 | 4 | `SearchOptions`, `ExtractorPlugin#search()`, `SearchResult`, `distube.search()` | 3 |
-| 5 | Source routing (`<source>:`, `--<source>`, `--all`) | 4 |
+| 5 | The `source` option of `SearchOptions` and of `PlayOptions` | 3, 4 |
 | 6 | `PluginError` / `PluginErrorCode` | — |
-| 7 | `getStream()` returning a `Readable`, `DisTubeStream` accepting a `Readable` | — |
-| 8 | `Plugin#requires` / `getDependency()` | 3 |
-| 9 | The removal of the v5 deprecations | — |
+| 7 | `StreamServer`, `Plugin#streams`, `Disposable` | — |
+| 8 | The removal of the v5 deprecations | — |
+| 9 | The merge of `InfoExtractorPlugin` into `ExtractorPlugin`, and the fallback chain | 4 |
+| 10 | HTTP `Range` in the stream server | 7, and every handler being able to resume |
+
+> The `coz` bot can already use step 3, 4 and 5 through the new
+> `musicError()` helper and the `source` field of the plugins, without
+> waiting for a release: the bot is the only consumer.
