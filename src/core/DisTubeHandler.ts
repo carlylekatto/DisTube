@@ -43,8 +43,11 @@ export class DisTubeHandler extends DisTubeBase {
       try {
         const song = await this.#searchSong(input, options);
         if (song) return song;
-      } catch {
-        throw new DisTubeError("NO_RESULT", input);
+      } catch (e: unknown) {
+        // Keep the original error as the cause so that it is not lost.
+        const error = new DisTubeError("NO_RESULT", input);
+        error.cause = e;
+        throw error;
       }
     }
     throw new DisTubeError("CANNOT_RESOLVE_SONG", input);
