@@ -197,14 +197,14 @@ client.on("interactionCreate", async interaction => {
 
 ### Why are shortcut methods deprecated?
 
-In v5.2, shortcut methods like `distube.pause(guild)`, `distube.skip(guild)`, etc. are deprecated. Use queue methods directly:
+The shortcut methods like `distube.pause(guild)`, `distube.skip(guild)`, etc. were deprecated in v5.2 and **removed in v6.0**. Use the queue methods directly:
 
 ```javascript
-// ❌ Deprecated (will be removed in v6.0)
+// ❌ Removed in v6.0
 distube.pause(message.guildId);
 distube.skip(message.guildId);
 
-// ✅ Recommended
+// ✅ Use the queue
 const queue = distube.getQueue(message.guildId);
 queue.pause();
 queue.skip();
@@ -216,14 +216,11 @@ This change provides:
 - Easier error handling
 - Better IDE autocompletion
 
-### Why is queue.playing true when paused?
+### Why is queue.paused true when the queue is stopped?
 
-The `queue.playing` property indicates the queue is **active** (has started playing), not that audio is currently outputting. It remains `true` when paused and only becomes `false` when stopped.
+The `queue.paused` property stays `true` once the queue is stopped, so that `!queue.paused` stays `false` as soon as the queue is not playing anymore.
 
 ```javascript
-// ❌ Deprecated - don't use queue.playing (will be removed in v6.0)
-if (queue.playing) { ... }
-
 // ✅ Check if audio is currently playing
 if (!queue.paused) { ... }
 
@@ -232,4 +229,7 @@ if (queue.paused) { ... }
 
 // ✅ Check if stopped
 if (queue.stopped) { ... }
+
+// ✅ Check if the queue is still active (it is also true when it is paused)
+if (queue.isActive) { ... }
 ```

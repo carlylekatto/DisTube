@@ -472,22 +472,22 @@ describe("Queue", () => {
       expect(queue.currentTime).toBe(40);
     });
 
-    it("returns playing state", () => {
+    it("returns the active state", () => {
       const queue = new Queue(mockDisTube, createMockVoice());
 
-      expect(queue.isPlaying()).toBe(false);
+      expect(queue.isActive).toBe(true);
 
-      queue.playing = true;
-      expect(queue.isPlaying()).toBe(true);
+      queue.stopped = true;
+      expect(queue.isActive).toBe(false);
     });
 
     it("returns paused state", () => {
       const queue = new Queue(mockDisTube, createMockVoice());
 
-      expect(queue.isPaused()).toBe(false);
+      expect(queue.paused).toBe(false);
 
       queue.paused = true;
-      expect(queue.isPaused()).toBe(true);
+      expect(queue.paused).toBe(true);
     });
   });
 

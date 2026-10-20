@@ -14,15 +14,7 @@ export { DisTube, DisTube as default } from "./DisTube";
 export * from "./struct/DisTubeError";
 export * from "./struct/ExtractorPlugin";
 export * from "./struct/InfoExtractorPlugin";
-/**
- * @deprecated Use {@link InfoExtractorPlugin} instead. Will be removed in v6.0.
- */
-export { InfoExtractorPlugin as InfoExtratorPlugin } from "./struct/InfoExtractorPlugin";
 export * from "./struct/PlayableExtractorPlugin";
-/**
- * @deprecated Use {@link PlayableExtractorPlugin} instead. Will be removed in v6.0.
- */
-export { PlayableExtractorPlugin as PlayableExtratorPlugin } from "./struct/PlayableExtractorPlugin";
 export * from "./struct/Playlist";
 export * from "./struct/Plugin";
 export * from "./struct/PluginError";

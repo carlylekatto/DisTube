@@ -591,18 +591,18 @@ The open questions have been answered:
 
 ## 8. Implementation order
 
-| Step | Item | Depends on |
-| --- | --- | --- |
-| 1 | `Plugin#destroy()`, `DisTube#destroy()` disposing the plugins | — (done in `feat/v6-foundation`) |
-| 2 | `SongInfo#metadata`, `DisTubeError.withMessage()` | — (done in `feat/v6-foundation`) |
-| 3 | `Plugin#source` / `#aliases`, `distube.getPlugin()` | — |
-| 4 | `SearchOptions`, `ExtractorPlugin#search()`, `SearchResult`, `distube.search()` | 3 |
-| 5 | The `source` option of `SearchOptions` and of `PlayOptions` | 3, 4 |
-| 6 | `PluginError` / `PluginErrorCode` | — |
-| 7 | `StreamServer`, `Plugin#streams`, `Disposable` | — |
-| 8 | The removal of the v5 deprecations | — |
-| 9 | The merge of `InfoExtractorPlugin` into `ExtractorPlugin`, and the fallback chain | 4 |
-| 10 | HTTP `Range` in every handler | 7, and every handler being able to resume |
+| Step | Item | Depends on | Status |
+| --- | --- | --- | --- |
+| 1 | `Plugin#destroy()`, `DisTube#destroy()` disposing the plugins | — | ✅ done |
+| 2 | `SongInfo#metadata`, `DisTubeError.withMessage()` | — | ✅ done |
+| 3 | `Plugin#source` / `#aliases`, `distube.getPlugin()` | — | ✅ done |
+| 4 | `SearchOptions`, `ExtractorPlugin#search()`, `SearchResult`, `distube.search()` | 3 | ✅ done |
+| 5 | The `source` option of `SearchOptions` and of `PlayOptions` | 3, 4 | ✅ done |
+| 6 | `PluginError` / `PluginErrorCode` | — | ✅ done |
+| 7 | `StreamServer`, `Plugin#streams`, `Disposable` | — | ✅ done |
+| 8 | The removal of the v5 deprecations | — | ✅ done |
+| 9 | The merge of `InfoExtractorPlugin` into `ExtractorPlugin`, and the fallback chain | 4 | ✅ done |
+| 10 | HTTP `Range` in every handler | 7, and every handler being able to resume | ⏳ later |
 
 > The `coz` bot can already use step 3, 4 and 5 through the new
 > `musicError()` helper and the `source` field of the plugins, without

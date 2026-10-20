@@ -19,12 +19,11 @@ import type {
   DisTubePlugin,
   Filters,
   GuildIdResolvable,
-  JumpOptions,
   PlayOptions,
   SearchOptions,
   TypedDisTubeEvents,
 } from "./type";
-import { Events, type RepeatMode } from "./type";
+import { Events } from "./type";
 import {
   checkIntents,
   handleUnhandledError,
@@ -416,141 +415,18 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
     });
   }
 
-  #getQueue(guild: GuildIdResolvable): Queue {
-    const queue = this.getQueue(guild);
-    if (!queue) throw new DisTubeError("NO_QUEUE");
-    return queue;
-  }
-
   /**
-   * Pause the guild stream
-   * @param guild - The type can be resolved to give a {@link Queue}
-   * @returns The guild queue
-   * @deprecated Use `distube.getQueue(guild).pause()` instead. Will be removed in v6.0.
-   */
-  pause(guild: GuildIdResolvable): Promise<Queue> {
-    return this.#getQueue(guild).pause();
-  }
-
   /**
-   * Resume the guild stream
-   * @param guild - The type can be resolved to give a {@link Queue}
-   * @returns The guild queue
-   * @deprecated Use `distube.getQueue(guild).resume()` instead. Will be removed in v6.0.
-   */
-  resume(guild: GuildIdResolvable): Promise<Queue> {
-    return this.#getQueue(guild).resume();
-  }
-
   /**
-   * Stop the guild stream
-   * @param guild - The type can be resolved to give a {@link Queue}
-   * @deprecated Use `distube.getQueue(guild).stop()` instead. Will be removed in v6.0.
-   */
-  stop(guild: GuildIdResolvable): Promise<void> {
-    return this.#getQueue(guild).stop();
-  }
-
   /**
-   * Set the guild stream's volume
-   * @param guild   - The type can be resolved to give a {@link Queue}
-   * @param percent - The percentage of volume you want to set
-   * @returns The guild queue
-   * @deprecated Use `distube.getQueue(guild).setVolume(percent)` instead. Will be removed in v6.0.
-   */
-  setVolume(guild: GuildIdResolvable, percent: number): Queue {
-    return this.#getQueue(guild).setVolume(percent);
-  }
-
   /**
-   * Skip the playing song if there is a next song in the queue. <info>If {@link
-   * Queue#autoplay} is `true` and there is no up next song, DisTube will add and
-   * play a related song.</info>
-   * @param guild - The type can be resolved to give a {@link Queue}
-   * @returns The new Song will be played
-   * @deprecated Use `distube.getQueue(guild).skip(options)` instead. Will be removed in v6.0.
-   */
-  skip(guild: GuildIdResolvable, options?: JumpOptions): Promise<Song> {
-    return this.#getQueue(guild).skip(options);
-  }
-
   /**
-   * Play the previous song
-   * @param guild - The type can be resolved to give a {@link Queue}
-   * @returns The new Song will be played
-   * @deprecated Use `distube.getQueue(guild).previous()` instead. Will be removed in v6.0.
-   */
-  previous(guild: GuildIdResolvable): Promise<Song> {
-    return this.#getQueue(guild).previous();
-  }
-
   /**
-   * Shuffle the guild queue songs
-   * @param guild - The type can be resolved to give a {@link Queue}
-   * @returns The guild queue
-   * @deprecated Use `distube.getQueue(guild).shuffle()` instead. Will be removed in v6.0.
-   */
-  shuffle(guild: GuildIdResolvable): Promise<Queue> {
-    return this.#getQueue(guild).shuffle();
-  }
-
   /**
-   * Jump to the song number in the queue. The next one is 1, 2,... The previous one
-   * is -1, -2,...
-   * @param guild - The type can be resolved to give a {@link Queue}
-   * @param num   - The song number to play
-   * @returns The new Song will be played
-   * @deprecated Use `distube.getQueue(guild).jump(num, options)` instead. Will be removed in v6.0.
-   */
-  jump(guild: GuildIdResolvable, num: number, options?: JumpOptions): Promise<Song> {
-    return this.#getQueue(guild).jump(num, options);
-  }
-
   /**
-   * Set the repeat mode of the guild queue.
-   * Toggle mode `(Disabled -> Song -> Queue -> Disabled ->...)` if `mode` is `undefined`
-   * @param guild - The type can be resolved to give a {@link Queue}
-   * @param mode  - The repeat modes (toggle if `undefined`)
-   * @returns The new repeat mode
-   * @deprecated Use `distube.getQueue(guild).setRepeatMode(mode)` instead. Will be removed in v6.0.
-   */
-  setRepeatMode(guild: GuildIdResolvable, mode?: RepeatMode): RepeatMode {
-    return this.#getQueue(guild).setRepeatMode(mode);
-  }
-
   /**
-   * Toggle autoplay mode
-   * @param guild - The type can be resolved to give a {@link Queue}
-   * @returns Autoplay mode state
-   * @deprecated Use `distube.getQueue(guild).toggleAutoplay()` instead. Will be removed in v6.0.
-   */
-  toggleAutoplay(guild: GuildIdResolvable): boolean {
-    const queue = this.#getQueue(guild);
-    queue.autoplay = !queue.autoplay;
-    return queue.autoplay;
-  }
-
   /**
-   * Add related song to the queue
-   * @param guild - The type can be resolved to give a {@link Queue}
-   * @returns The guild queue
-   * @deprecated Use `distube.getQueue(guild).addRelatedSong()` instead. Will be removed in v6.0.
-   */
-  addRelatedSong(guild: GuildIdResolvable): Promise<Song> {
-    return this.#getQueue(guild).addRelatedSong();
-  }
-
   /**
-   * Set the playing time to another position
-   * @param guild - The type can be resolved to give a {@link Queue}
-   * @param time  - Time in seconds
-   * @returns Seeked queue
-   * @deprecated Use `distube.getQueue(guild).seek(time)` instead. Will be removed in v6.0.
-   */
-  seek(guild: GuildIdResolvable, time: number): Promise<Queue> {
-    return this.#getQueue(guild).seek(time);
-  }
-
   /**
    * Emit error event
    * @param error   - error

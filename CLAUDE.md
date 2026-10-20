@@ -300,14 +300,14 @@ distube.on(Events.FFMPEG_DEBUG, console.log);
 - Test files: `*.test.ts` suffix
 - Types-only files: Named by content (`type.ts`, not `types.ts`)
 
-## Deprecations (v5.2 → v6.0)
+## Removed in v6.0
 
-The following methods are deprecated and will be removed in v6.0:
+The following API was deprecated in v5.2 and **removed in v6.0**:
 
 ### DisTube Shortcut Methods
 Use `distube.getQueue(guild).method()` instead of `distube.method(guild)`:
 
-| Deprecated | Replacement |
+| Removed | Replacement |
 |------------|-------------|
 | `distube.pause(guild)` | `distube.getQueue(guild).pause()` |
 | `distube.resume(guild)` | `distube.getQueue(guild).resume()` |
@@ -323,15 +323,39 @@ Use `distube.getQueue(guild).method()` instead of `distube.method(guild)`:
 | `distube.seek(guild, time)` | `distube.getQueue(guild).seek(time)` |
 
 ### Queue Getter Methods
-Use properties directly instead of getter methods:
+Use the properties directly instead of the getter methods:
 
-| Deprecated | Replacement |
+| Removed | Replacement |
 |------------|-------------|
 | `queue.isPlaying()` | `!queue.paused` |
 | `queue.isPaused()` | `queue.paused` |
 
 ### Queue Properties
 
-| Deprecated | Replacement |
+| Removed | Replacement |
 |------------|-------------|
-| `queue.playing` | `!queue.paused` |
+| `queue.playing` | `queue.isActive` (true unless the queue is stopped) |
+
+### Typo Aliases
+
+| Removed | Replacement |
+|------------|-------------|
+| `InfoExtratorPlugin` | `InfoExtractorPlugin` |
+| `PlayableExtratorPlugin` | `PlayableExtractorPlugin` |
+
+## Plugin API (v6)
+
+- One base class: `ExtractorPlugin`. `InfoExtractorPlugin` and
+  `PlayableExtractorPlugin` extend it and only change the `type`.
+- `searchSong()`, `search()` and `createSearchQuery()` live on `Plugin` with a
+  default implementation, so a plugin only implements what it supports.
+- `Plugin#source` and `Plugin#aliases` declare the identifiers of a source.
+  `distube.getPlugin(source)` finds a plugin by one of them.
+- `Plugin#playable` is `false` when the plugin cannot play the songs it
+  resolves. The `Song` constructor then forces `playFromSource` to `false`, and
+  the handler looks for a playable version with the other plugins.
+- `Plugin#destroy()` releases the resources of the plugin. `DisTube#destroy()`
+  calls it and closes the stream server.
+- `Plugin#streams` gives access to the shared local HTTP server of DisTube.
+- `PluginError` and `PluginErrorCode` are the errors a plugin raises.
+

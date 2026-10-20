@@ -36,13 +36,6 @@ export class Queue extends DisTubeBase {
    */
   stopped: boolean;
   /**
-   * Whether or not the queue is active.
-   *
-   * Note: This remains `true` when paused. It only becomes `false` when stopped.
-   * @deprecated Use `!queue.paused` to check if audio is playing. Will be removed in v6.0.
-   */
-  playing: boolean;
-  /**
    * Whether or not the stream is currently paused.
    *
    * It is also `true` once the queue has been stopped, so that `!queue.paused`
@@ -103,7 +96,6 @@ export class Queue extends DisTubeBase {
     this.previousSongs = [];
     this.stopped = false;
     this._manualUpdate = false;
-    this.playing = false;
     this.paused = false;
     this.repeatMode = RepeatMode.DISABLED;
     this.autoplay = false;
@@ -222,19 +214,7 @@ export class Queue extends DisTubeBase {
     return this;
   }
   /**
-   * @returns `true` if the queue is active (not stopped)
-   * @deprecated Use `!queue.paused` to check if audio is playing. Will be removed in v6.0.
-   */
-  isPlaying(): boolean {
-    return this.playing;
-  }
   /**
-   * @returns `true` if the queue is paused
-   * @deprecated Use `queue.paused` property instead. Will be removed in v6.0.
-   */
-  isPaused(): boolean {
-    return this.paused;
-  }
   /**
    * Pause the guild stream
    * @returns The guild queue
@@ -459,7 +439,6 @@ export class Queue extends DisTubeBase {
    * Remove the queue from the manager
    */
   remove() {
-    this.playing = false;
     this.paused = true;
     this.stopped = true;
     this.songs = [];
@@ -482,7 +461,6 @@ export class Queue extends DisTubeBase {
    */
   play(emitPlaySong = true) {
     if (this.stopped) throw new DisTubeError("QUEUE_STOPPED");
-    this.playing = true;
     return this.queues.playSong(this, emitPlaySong);
   }
   /**
