@@ -79,6 +79,107 @@ describe("Queue", () => {
     });
   });
 
+  describe("previous()", () => {
+    const mockDisTube = {
+      options: {
+        savePreviousSongs: true,
+        ffmpeg: { path: "ffmpeg", args: { global: {}, input: {}, output: {} } },
+      },
+      emit: vi.fn(),
+      debug: vi.fn(),
+      handler: { _getPluginFromSong: vi.fn().mockResolvedValue(null) },
+      queues: { playSong: vi.fn() },
+    } as any;
+
+    it("does not duplicate the song in repeat-queue mode without history", async () => {
+      const queue = new Queue(mockDisTube, createMockVoice());
+      const song1 = { id: "1" } as Song;
+      const song2 = { id: "2" } as Song;
+      queue.songs = [song1, song2];
+      queue.previousSongs = [];
+      queue.repeatMode = RepeatMode.QUEUE;
+
+      const song = await queue.previous();
+
+      expect(song).toBe(song2);
+      expect(queue.songs.map(s => s.id)).toEqual(["2", "1"]);
+      expect(queue.songs.filter(s => s.id === "2")).toHaveLength(1);
+    });
+
+    it("replays the only song of the queue without duplicating it", async () => {
+      const queue = new Queue(mockDisTube, createMockVoice());
+      const song1 = { id: "1" } as Song;
+      queue.songs = [song1];
+      queue.previousSongs = [];
+      queue.repeatMode = RepeatMode.QUEUE;
+
+      const song = await queue.previous();
+
+      expect(song).toBe(song1);
+      expect(queue.songs.map(s => s.id)).toEqual(["1"]);
+    });
+
+    it("throws NO_PREVIOUS when there is nothing to replay", async () => {
+      const queue = new Queue(mockDisTube, createMockVoice());
+      queue.songs = [];
+      queue.previousSongs = [];
+      queue.repeatMode = RepeatMode.QUEUE;
+
+      await expect(queue.previous()).rejects.toThrow("no previous song");
+    });
+
+    it("pops the song from the history when there is one", async () => {
+      const queue = new Queue(mockDisTube, createMockVoice());
+      const song1 = { id: "1" } as Song;
+      const played = { id: "played" } as Song;
+      queue.songs = [song1];
+      queue.previousSongs = [played];
+      queue.repeatMode = RepeatMode.QUEUE;
+
+      const song = await queue.previous();
+
+      expect(song).toBe(played);
+      expect(queue.songs.map(s => s.id)).toEqual(["played", "1"]);
+      expect(queue.previousSongs).toEqual([]);
+    });
+  });
+
+  describe("isActive", () => {
+    const mockDisTube = {
+      options: {
+        savePreviousSongs: true,
+        ffmpeg: { path: "ffmpeg", args: { global: {}, input: {}, output: {} } },
+      },
+      emit: vi.fn(),
+      debug: vi.fn(),
+      handler: { _getPluginFromSong: vi.fn().mockResolvedValue(null) },
+      queues: { playSong: vi.fn(), remove: vi.fn() },
+    } as any;
+
+    it("is true while the queue is playing", () => {
+      const queue = new Queue(mockDisTube, createMockVoice());
+      queue.stopped = false;
+      queue.paused = false;
+
+      expect(queue.isActive).toBe(true);
+    });
+
+    it("is true while the queue is paused", () => {
+      const queue = new Queue(mockDisTube, createMockVoice());
+      queue.stopped = false;
+      queue.paused = true;
+
+      expect(queue.isActive).toBe(true);
+    });
+
+    it("is false once the queue is stopped", () => {
+      const queue = new Queue(mockDisTube, createMockVoice());
+      queue.stopped = true;
+
+      expect(queue.isActive).toBe(false);
+    });
+  });
+
   describe("skip/jump with requeue option", () => {
     const mockDisTube = {
       options: {

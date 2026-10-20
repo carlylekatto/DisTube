@@ -44,6 +44,9 @@ export class Queue extends DisTubeBase {
   playing: boolean;
   /**
    * Whether or not the stream is currently paused.
+   *
+   * It is also `true` once the queue has been stopped, so that `!queue.paused`
+   * stays `false` as soon as the queue is not playing anymore.
    */
   paused: boolean;
   /**
@@ -143,6 +146,17 @@ export class Queue extends DisTubeBase {
    */
   get filters() {
     return this.#filters;
+  }
+  /**
+   * Whether or not the queue is still active.
+   *
+   * It is `false` only when the queue has been stopped. A paused queue is still
+   * active.
+   *
+   * This is the replacement of the deprecated {@link Queue#playing} property.
+   */
+  get isActive(): boolean {
+    return !this.stopped;
   }
   /**
    * Formatted duration string.
@@ -280,13 +294,15 @@ export class Queue extends DisTubeBase {
     await this._taskQueue.queuing();
     try {
       if (!this.options.savePreviousSongs) throw new DisTubeError("DISABLED_OPTION", "savePreviousSongs");
-      if (this.previousSongs.length === 0 && this.repeatMode !== RepeatMode.QUEUE) {
+      const hasPrevious = this.previousSongs.length > 0;
+      if (!hasPrevious && this.repeatMode !== RepeatMode.QUEUE) {
         throw new DisTubeError("NO_PREVIOUS");
       }
-      const song =
-        this.repeatMode === RepeatMode.QUEUE && this.previousSongs.length === 0
-          ? (this.songs[this.songs.length - 1] as Song)
-          : (this.previousSongs.pop() as Song);
+      // In repeat-queue mode without any history, the last song of the queue is
+      // replayed. It has to be removed from its position, otherwise it would be
+      // queued twice.
+      const song = hasPrevious ? this.previousSongs.pop() : this.songs.pop();
+      if (!song) throw new DisTubeError("NO_PREVIOUS");
       this.songs.unshift(song);
       this.#stop();
       return song;
