@@ -19,7 +19,12 @@ export abstract class Plugin {
   }
   /**
    * Get related songs from a supported url.
+   *
+   * Override it to enable the autoplay for your source. Return an empty array
+   * when your source does not have any related songs.
    * @param song - Input song
    */
-  abstract getRelatedSongs(song: Song): Awaitable<Song[]>;
+  getRelatedSongs(_song: Song): Awaitable<Song[]> {
+    return [];
+  }
 }
