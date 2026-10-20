@@ -1,6 +1,7 @@
 import { request } from "undici";
 import { HTTP_REDIRECT_CODES, MAX_REDIRECT_DEPTH } from "../constant";
 import { DisTubeError } from "../struct/DisTubeError";
+import type { ExtractorPlugin } from "../struct/ExtractorPlugin";
 import { Playlist } from "../struct/Playlist";
 import { Song } from "../struct/Song";
 import type { DisTubePlugin, ResolveOptions } from "../type";
@@ -80,7 +81,11 @@ export class DisTubeHandler extends DisTubeBase {
   }
 
   async #searchSong(query: string, options: ResolveOptions = {}, getStreamURL = false): Promise<Song | null> {
-    const plugins = this.plugins.filter(p => p.type === PluginType.EXTRACTOR);
+    const source = options.source?.toLowerCase();
+    const plugins = this.plugins.filter(
+      (plugin): plugin is ExtractorPlugin =>
+        plugin.type === PluginType.EXTRACTOR && (!source || plugin.identifiers.includes(source)),
+    );
     if (!plugins.length) throw new DisTubeError("NO_EXTRACTOR_PLUGIN");
     for (const plugin of plugins) {
       this.debug(`[${plugin.constructor.name}] Searching for song: ${query}`);

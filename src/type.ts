@@ -290,6 +290,17 @@ export interface PlayOptions<T = unknown> extends PlayHandlerOptions, ResolveOpt
   message?: Message;
 }
 
+/**
+ * The kind of result a search is looking for.
+ */
+export enum SearchResultType {
+  TRACK = "track",
+  VIDEO = "video",
+  PLAYLIST = "playlist",
+  ALBUM = "album",
+  ARTIST = "artist",
+}
+
 export interface ResolveOptions<T = unknown> {
   /**
    * Requested user
@@ -299,6 +310,31 @@ export interface ResolveOptions<T = unknown> {
    * Metadata
    */
   metadata?: T;
+  /**
+   * The source to resolve the input in.
+   *
+   * It matches the {@link Plugin.source} of a plugin, or one of its
+   * {@link Plugin.aliases}. When it is not given, every plugin is used.
+   */
+  source?: string;
+}
+
+/**
+ * Options of a search.
+ */
+export interface SearchOptions<T = unknown> extends ResolveOptions<T> {
+  /**
+   * [Default: 10] Maximum number of results.
+   */
+  limit?: number;
+  /**
+   * The kind of result the caller is looking for.
+   */
+  type?: SearchResultType;
+  /**
+   * Whether or not filtering the explicit content.
+   */
+  safeSearch?: boolean;
 }
 
 export interface ResolvePlaylistOptions<T = unknown> extends ResolveOptions<T> {

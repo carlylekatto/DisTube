@@ -6,8 +6,10 @@ import { Options } from "./core/DisTubeOptions";
 import { DisTubeVoiceManager } from "./core/manager/DisTubeVoiceManager";
 import { QueueManager } from "./core/manager/QueueManager";
 import { DisTubeError } from "./struct/DisTubeError";
+import type { ExtractorPlugin } from "./struct/ExtractorPlugin";
 import { Playlist } from "./struct/Playlist";
 import type { Queue } from "./struct/Queue";
+import { SearchResult } from "./struct/SearchResult";
 import { Song } from "./struct/Song";
 import type {
   Awaitable,
@@ -18,9 +20,10 @@ import type {
   GuildIdResolvable,
   JumpOptions,
   PlayOptions,
+  SearchOptions,
   TypedDisTubeEvents,
 } from "./type";
-import { Events, type RepeatMode } from "./type";
+import { Events, PluginType, type RepeatMode } from "./type";
 import {
   checkIntents,
   handleUnhandledError,
@@ -237,7 +240,7 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
     }
     if (!isObject(options)) throw new DisTubeError("INVALID_TYPE", "object", options, "options");
 
-    const { textChannel, member, skip, message, metadata } = {
+    const { textChannel, member, skip, message, metadata, source } = {
       member: voiceChannel.guild.members.me ?? undefined,
       textChannel: options?.message?.channel,
       skip: false,
@@ -259,7 +262,7 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
     await queue._taskQueue.queuing(true);
     try {
       this.debug(`[${queue.id}] Playing input: ${song}`);
-      const resolved = await this.handler.resolve(song, { member, metadata });
+      const resolved = await this.handler.resolve(song, { member, metadata, source });
       const isNsfw = isNsfwChannel(queue?.textChannel || textChannel);
       const isFirstSong = queue.songs.length === 0;
       if (resolved instanceof Playlist) {
@@ -349,6 +352,52 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
    */
   getQueue(guild: GuildIdResolvable): Queue | undefined {
     return this.queues.get(guild);
+  }
+
+  /**
+   * Get a plugin by the identifier of its source.
+   *
+   * It matches the {@link Plugin.source} of the plugin, or one of its
+   * {@link Plugin.aliases}. The identifier of the class is used when the
+   * plugin does not define a source (`YoutubePlugin` -> `youtube`).
+   * @param source - The identifier of the source
+   * @returns The plugin, or `undefined` when there is none
+   */
+  getPlugin(source: string): DisTubePlugin | undefined {
+    if (typeof source !== "string" || !source) return undefined;
+    const identifier = source.toLowerCase();
+    return this.plugins.find(plugin => plugin.identifiers.includes(identifier));
+  }
+
+  /**
+   * Search for the songs of the plugins.
+   *
+   * The plugins are used in the order they were registered. When
+   * {@link ResolveOptions.source} is given, only the matching plugin is used.
+   * @param query   - The search query
+   * @param options - Optional options
+   * @returns The result of the search
+   */
+  async search<T = unknown>(query: string, options: SearchOptions<T> = {}): Promise<SearchResult<T>> {
+    const limit = options.limit ?? 10;
+    const plugins: ExtractorPlugin[] = options.source
+      ? [this.getPlugin(options.source)].filter(
+          (plugin): plugin is ExtractorPlugin => plugin?.type === PluginType.EXTRACTOR,
+        )
+      : this.plugins.filter((plugin): plugin is ExtractorPlugin => plugin.type === PluginType.EXTRACTOR);
+
+    const songs: Song<T>[] = [];
+    for (const plugin of plugins) {
+      if (songs.length >= limit) break;
+      const found = await plugin.search<T>(query, { ...options, limit: limit - songs.length });
+      if (!found?.length) continue;
+      songs.push(...found);
+    }
+
+    return new SearchResult<T>(query, {
+      songs: songs.slice(0, limit),
+      queryType: options.type,
+    });
   }
 
   #getQueue(guild: GuildIdResolvable): Queue {
