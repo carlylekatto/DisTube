@@ -124,7 +124,9 @@ export class Song<T = unknown> {
       url: info.uploader?.url,
     };
     this.ageRestricted = info.ageRestricted;
-    this.stream = { playFromSource: info.playFromSource };
+    // A plugin that cannot play its own songs never has a stream: its songs are
+    // resolved to a playable version by another plugin.
+    this.stream = { playFromSource: info.playFromSource && info.plugin?.playable !== false };
     this.plugin = info.plugin;
   }
 

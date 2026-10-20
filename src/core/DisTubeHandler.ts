@@ -114,15 +114,39 @@ export class DisTubeHandler extends DisTubeBase {
     } else {
       if (song.stream.song?.stream?.playFromSource && song.stream.song.stream.url) return;
       this.debug(`[DisTubeHandler] Getting stream info: ${song}`);
-      const plugin = await this._getPluginFromSong(song, [PluginType.INFO_EXTRACTOR]);
-      if (!plugin) throw new DisTubeError("NOT_SUPPORTED_SONG", song.toString());
-      this.debug(`[${plugin.constructor.name}] Creating search query for: ${song}`);
-      const query = await plugin.createSearchQuery(song);
+      // The song comes from a plugin that cannot play it: look for a playable
+      // version of it with the other plugins.
+      const source = song.plugin;
+      const query = source
+        ? await source.createSearchQuery(song)
+        : `${song.name ?? ""} ${song.uploader?.name ?? ""}`.trim();
       if (!query) throw new DisTubeError("CANNOT_GET_SEARCH_QUERY", song.toString());
-      const altSong = await this.#searchSong(query, { metadata: song.metadata, member: song.member }, true);
-      if (!altSong || !altSong.stream.playFromSource) throw new DisTubeError("NO_RESULT", query || song.toString());
+      const altSong = await this.#findPlayableSong(query, song, source);
       song.stream.song = altSong;
     }
+  }
+
+  /**
+   * Look for a playable version of a song with the plugins that can search.
+   *
+   * Every searchable plugin is tried, in the order they were registered, until
+   * one of them has a result.
+   * @param query  - The search query
+   * @param song   - The song that cannot be played
+   * @param source - The plugin that resolved the song
+   * @returns The playable song
+   */
+  async #findPlayableSong(query: string, song: Song, source: DisTubePlugin | null): Promise<Song> {
+    const options: ResolveOptions = { metadata: song.metadata, member: song.member };
+    for (const plugin of this.plugins) {
+      if (plugin === source) continue;
+      const result = await plugin.searchSong(query, options);
+      if (!result) continue;
+      this.debug(`[${plugin.constructor.name}] Found a playable version of "${query}"`);
+      if (result.stream.playFromSource) result.stream.url = await plugin.getStreamURL(result);
+      return result;
+    }
+    throw new DisTubeError("NO_RESULT", query);
   }
 
   async followRedirectLink(url: string, maxRedirect = MAX_REDIRECT_DEPTH): Promise<string> {

@@ -31,7 +31,7 @@ class YoutubePlugin extends ExtractorPlugin {
   async resolve<T>(_url: string, _options: ResolveOptions<T>): Promise<Song<T> | Playlist<T>> {
     return { id: "yt", stream: {} } as Song<T>;
   }
-  async searchSong<T>(query: string): Promise<Song<T> | null> {
+  override async searchSong<T>(query: string): Promise<Song<T> | null> {
     return { id: `yt:${query}`, name: query, stream: {} } as Song<T>;
   }
   override async search<T>(query: string, options: SearchOptions<T> = {}): Promise<SearchResult<T>> {
@@ -54,7 +54,7 @@ class SoundcloudPlugin extends ExtractorPlugin {
   async resolve<T>(_url: string, _options: ResolveOptions<T>): Promise<Song<T> | Playlist<T>> {
     return { id: "sc", stream: {} } as Song<T>;
   }
-  async searchSong<T>(query: string): Promise<Song<T> | null> {
+  override async searchSong<T>(query: string): Promise<Song<T> | null> {
     return { id: `sc:${query}`, name: query, stream: {} } as Song<T>;
   }
   async getStreamURL(): Promise<string> {

@@ -1,29 +1,45 @@
 import type { Awaitable, ResolveOptions } from "../type";
 import { PluginType } from "../type";
+import { ExtractorPlugin } from "./ExtractorPlugin";
 import type { Playlist } from "./Playlist";
-import { Plugin } from "./Plugin";
+import { PluginError, PluginErrorCode } from "./PluginError";
 import type { Song } from "./Song";
 
 /**
  * This plugin only can extract the info from supported links, but not play song directly from its source
+ *
+ * @deprecated Use {@link ExtractorPlugin} with `playable: false` instead.
  */
-export abstract class InfoExtractorPlugin extends Plugin {
-  readonly type = PluginType.INFO_EXTRACTOR;
+export abstract class InfoExtractorPlugin extends ExtractorPlugin {
+  override readonly type: PluginType = PluginType.INFO_EXTRACTOR;
+  /**
+   * The songs of this plugin are resolved to a playable version by another
+   * plugin.
+   */
+  override readonly playable = false;
   /**
    * Check if the url is working with this plugin
    * @param url - Input url
    */
-  abstract validate(url: string): Awaitable<boolean>;
+  abstract override validate(url: string): Awaitable<boolean>;
   /**
    * Resolve the validated url to a {@link Song} or a {@link Playlist}.
    * @param url     - URL
    * @param options - Optional options
    */
-  abstract resolve<T>(url: string, options: ResolveOptions<T>): Awaitable<Song<T> | Playlist<T>>;
+  abstract override resolve<T>(url: string, options: ResolveOptions<T>): Awaitable<Song<T> | Playlist<T>>;
 
   /**
    * Create a search query to be used in {@link ExtractorPlugin#searchSong}
    * @param song - Input song
    */
-  abstract createSearchQuery<T>(song: Song<T>): Awaitable<string>;
+  abstract override createSearchQuery<T>(song: Song<T>): Awaitable<string>;
+
+  /**
+   * This plugin cannot play the songs it resolves, so it never has a stream url.
+   * @param song - Input song
+   */
+  override async getStreamURL<T>(_song: Song<T>): Promise<string> {
+    throw new PluginError(PluginErrorCode.NO_STREAM);
+  }
 }

@@ -1,6 +1,7 @@
 import type { StreamServer } from "../core/StreamServer";
 import type { DisTube } from "../DisTube";
-import type { Awaitable, PluginType } from "../type";
+import type { Awaitable, PluginType, ResolveOptions, SearchOptions } from "../type";
+import { SearchResult } from "./SearchResult";
 import type { Song } from "./Song";
 
 /**
@@ -25,6 +26,13 @@ export abstract class Plugin {
    * Additional identifiers of the source of the plugin, e.g. `["yt"]`.
    */
   readonly aliases?: string[];
+  /**
+   * Whether the songs of this plugin can be played directly.
+   *
+   * When it is `false`, the songs of the plugin are resolved to a playable
+   * version by another plugin. It defaults to `true`.
+   */
+  readonly playable?: boolean;
   /**
    * DisTube
    */
@@ -53,6 +61,45 @@ export abstract class Plugin {
    */
   get streams(): StreamServer {
     return this.distube.streams;
+  }
+  /**
+   * Search for a song of the source.
+   *
+   * Override it to enable the search of your source. It returns `null` by
+   * default, because a source that cannot be searched does not have any result.
+   * @param query   - Search query
+   * @param options - Optional options
+   * @returns The song that was found, or `null`
+   */
+  searchSong<T>(_query: string, _options: ResolveOptions<T>): Awaitable<Song<T> | null> {
+    return null;
+  }
+  /**
+   * Search for the songs of the source.
+   *
+   * The default implementation returns the single result of
+   * {@link Plugin#searchSong}. Override it to return more results, or to return
+   * a playlist.
+   * @param query   - Search query
+   * @param options - Optional options
+   * @returns The result of the search
+   */
+  async search<T>(query: string, options: SearchOptions<T> = {}): Promise<SearchResult<T>> {
+    const song = await this.searchSong(query, options);
+    return new SearchResult<T>(query, {
+      songs: song ? [song] : [],
+      queryType: options.type,
+    });
+  }
+  /**
+   * Create the query used to find a playable version of a song.
+   *
+   * It is used when the plugin cannot play the songs it resolves.
+   * @param song - Input song
+   * @returns The search query
+   */
+  createSearchQuery<T>(song: Song<T>): Awaitable<string> {
+    return `${song.name ?? ""} ${song.uploader?.name ?? ""}`.trim();
   }
   /**
    * Get related songs from a supported url.

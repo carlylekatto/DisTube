@@ -24,7 +24,7 @@ import type {
   SearchOptions,
   TypedDisTubeEvents,
 } from "./type";
-import { Events, PluginType, type RepeatMode } from "./type";
+import { Events, type RepeatMode } from "./type";
 import {
   checkIntents,
   handleUnhandledError,
@@ -389,11 +389,9 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
    */
   async search<T = unknown>(query: string, options: SearchOptions<T> = {}): Promise<SearchResult<T>> {
     const limit = options.limit ?? 10;
-    const plugins: ExtractorPlugin[] = options.source
-      ? [this.getPlugin(options.source)].filter(
-          (plugin): plugin is ExtractorPlugin => plugin?.type === PluginType.EXTRACTOR,
-        )
-      : this.plugins.filter((plugin): plugin is ExtractorPlugin => plugin.type === PluginType.EXTRACTOR);
+    const plugins: DisTubePlugin[] = options.source
+      ? [this.getPlugin(options.source)].filter((plugin): plugin is DisTubePlugin => Boolean(plugin))
+      : this.plugins;
 
     const songs: Song<T>[] = [];
     const sources: string[] = [];
