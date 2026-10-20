@@ -134,12 +134,12 @@ export abstract class ExtractorPlugin extends Plugin {
   /**
    * Search for songs.
    *
-   * The default implementation falls back to searchSong(), so the existing
-   * plugins keep working unchanged.
+   * The default implementation returns the single result of searchSong(), so
+   * the existing plugins keep working unchanged.
    */
-  async search<T>(query: string, options: SearchOptions<T>): Promise<Song<T>[]> {
+  async search<T>(query: string, options: SearchOptions<T> = {}): Promise<SearchResult<T>> {
     const song = await this.searchSong(query, options);
-    return song ? [song] : [];
+    return new SearchResult<T>(query, { songs: song ? [song] : [], queryType: options.type });
   }
 }
 ```
@@ -147,7 +147,9 @@ export abstract class ExtractorPlugin extends Plugin {
 `searchSong()` stays, but is documented as "the single result shortcut of
 `search()`".
 
-At the DisTube level:
+**The same result type is used at every level.** A plugin and DisTube both
+return a `SearchResult`, so there is nothing to unwrap and the shape of a
+search does not depend on where it was made.
 
 ```ts
 export class SearchResult<T = unknown> {
@@ -155,6 +157,8 @@ export class SearchResult<T = unknown> {
   readonly queryType: SearchResultType;
   readonly songs: Song<T>[];
   readonly playlist?: Playlist<T>;
+  /** The identifiers of the plugins that contributed to the result. */
+  readonly sources: string[];
 
   isEmpty(): boolean;
   hasSongs(): boolean;
@@ -164,6 +168,10 @@ export class SearchResult<T = unknown> {
 
 distube.search(query: string, options?: SearchOptions): Promise<SearchResult>;
 ```
+
+A plugin that finds a playlist sets the `playlist` of the result, which is why
+the field exists: a search can return tracks **or** an album **or** a
+playlist, and `SearchResultType` describes which one was looked for.
 
 **Source routing.** The `coz` bot has seven copies of the same prefix parser
 (`<source>: <query>`, `<query> --<source>`, `-s <source>`). It moves to the
@@ -441,7 +449,11 @@ async search(query, options = {}) {
 ```js
 async search(query, options = {}) {
   const result = await this.client.search(query, { limit: options.limit ?? 10 });
-  return result.tracks.map(t => new SpotifySong(this, t, options));
+  return new SearchResult(query, {
+    songs: result.tracks.map(t => new SpotifySong(this, t, options)),
+    queryType: options.type,
+    sources: ["spotify"],
+  });
 }
 ```
 
@@ -541,11 +553,13 @@ was already announced: the removal of the deprecated shortcut methods.
 
 The open questions have been answered:
 
-1. **`search()` returns `Song[]`.** The search APIs of every source already
-   return everything a `Song` needs, so it costs nothing, and it removes the
-   second round trip: today a bot has to search, throw the result away, keep
-   the URL and resolve it again to play it. `SearchResult` carries the songs
-   and, optionally, a playlist.
+1. **`search()` returns a `SearchResult`, at every level.** The search APIs of
+   every source already return everything a `Song` needs, so it costs nothing,
+   and it removes the second round trip: today a bot has to search, throw the
+   result away, keep the URL and resolve it again to play it. The plugin and
+   DisTube return the same type, so there is nothing to unwrap. `SearchResult`
+   carries the songs, the optional playlist, the query type and the sources
+   that contributed.
 2. **The source routing syntax stays in the bot.** The core provides the
    capability — `plugin.source`, `plugin.aliases`, `distube.getPlugin()` and
    the `source` option — but the `<source>:` prefix is a user interface

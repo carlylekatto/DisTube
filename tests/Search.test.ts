@@ -6,6 +6,7 @@ import {
   type Playlist,
   PluginType,
   type ResolveOptions,
+  type SearchOptions,
   SearchResult,
   SearchResultType,
   type Song,
@@ -33,9 +34,13 @@ class YoutubePlugin extends ExtractorPlugin {
   async searchSong<T>(query: string): Promise<Song<T> | null> {
     return { id: `yt:${query}`, name: query, stream: {} } as Song<T>;
   }
-  override async search<T>(query: string, options: { limit?: number } = {}): Promise<Song<T>[]> {
+  override async search<T>(query: string, options: SearchOptions<T> = {}): Promise<SearchResult<T>> {
     const limit = options.limit ?? 10;
-    return Array.from({ length: limit }, (_, i) => ({ id: `yt:${query}:${i}`, name: query, stream: {} }) as Song<T>);
+    return new SearchResult<T>(query, {
+      songs: Array.from({ length: limit }, (_, i) => ({ id: `yt:${query}:${i}`, name: query, stream: {} }) as Song<T>),
+      queryType: options.type,
+      sources: ["youtube"],
+    });
   }
   async getStreamURL(): Promise<string> {
     return "http://example.com/stream";
@@ -164,10 +169,56 @@ describe("ExtractorPlugin#search()", () => {
   it("returns the single result of searchSong by default", async () => {
     const plugin = new SoundcloudPlugin();
 
-    const songs = await plugin.search("song");
+    const result = await plugin.search("song");
 
-    expect(songs).toHaveLength(1);
-    expect(songs[0]?.id).toBe("sc:song");
+    expect(result).toBeInstanceOf(SearchResult);
+    expect(result.query).toBe("song");
+    expect(result.songs).toHaveLength(1);
+    expect(result.songs[0]?.id).toBe("sc:song");
+  });
+
+  it("returns an empty result when there is no song", async () => {
+    class EmptyPlugin extends SoundcloudPlugin {
+      override async searchSong<T>(_query: string): Promise<Song<T> | null> {
+        return null;
+      }
+    }
+
+    const result = await new EmptyPlugin().search("song");
+
+    expect(result.isEmpty()).toBe(true);
+    expect(result.hasSongs()).toBe(false);
+  });
+});
+
+describe("SearchResult", () => {
+  it("carries the playlist that was found", () => {
+    const playlist = { id: "pl", name: "Playlist", songs: [] } as unknown as Playlist;
+    const result = new SearchResult("query", { playlist });
+
+    expect(result.hasPlaylist()).toBe(true);
+    expect(result.isEmpty()).toBe(false);
+  });
+
+  it("lists the sources that contributed", async () => {
+    const youtube = new YoutubePlugin();
+    const soundcloud = new SoundcloudPlugin();
+    const distube = new DisTube(createMockClient(), { plugins: [youtube, soundcloud] });
+
+    const result = await distube.search("song", { limit: 4 });
+
+    expect(result.sources).toEqual(["youtube"]);
+  });
+
+  it("serializes the data of the result", async () => {
+    const distube = new DisTube(createMockClient(), { plugins: [new YoutubePlugin()] });
+
+    const result = await distube.search("song", { limit: 1 });
+    const json = result.toJSON() as { query: string; sources: string[]; songs: { id: string }[] };
+
+    expect(json.query).toBe("song");
+    expect(json.sources).toEqual(["youtube"]);
+    expect(json.songs[0]?.id).toBe("yt:song:0");
   });
 });
 

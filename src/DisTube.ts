@@ -387,16 +387,25 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
       : this.plugins.filter((plugin): plugin is ExtractorPlugin => plugin.type === PluginType.EXTRACTOR);
 
     const songs: Song<T>[] = [];
+    const sources: string[] = [];
+    let playlist: Playlist<T> | undefined;
+
     for (const plugin of plugins) {
       if (songs.length >= limit) break;
       const found = await plugin.search<T>(query, { ...options, limit: limit - songs.length });
-      if (!found?.length) continue;
-      songs.push(...found);
+      if (!found) continue;
+      if (found.songs.length) {
+        songs.push(...found.songs);
+        sources.push(plugin.identifiers[0] ?? plugin.constructor.name);
+      }
+      playlist ??= found.playlist;
     }
 
     return new SearchResult<T>(query, {
       songs: songs.slice(0, limit),
+      playlist,
       queryType: options.type,
+      sources,
     });
   }
 

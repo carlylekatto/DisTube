@@ -4,6 +4,9 @@ import type { Song } from "./Song";
 
 /**
  * The result of a search.
+ *
+ * It is the result type of every search, at the plugin level and at the
+ * DisTube level.
  */
 export class SearchResult<T = unknown> {
   /**
@@ -23,9 +26,13 @@ export class SearchResult<T = unknown> {
    */
   readonly playlist?: Playlist<T>;
   /**
+   * The identifiers of the plugins that contributed to the result.
+   */
+  readonly sources: string[];
+  /**
    * Create a search result.
-   * @param query     - The query of the search
-   * @param options   - Optional data
+   * @param query   - The query of the search
+   * @param options - Optional data
    */
   constructor(
     query: string,
@@ -33,16 +40,19 @@ export class SearchResult<T = unknown> {
       songs = [],
       playlist,
       queryType,
+      sources = [],
     }: {
       songs?: Song<T>[];
       playlist?: Playlist<T>;
       queryType?: SearchResultType;
+      sources?: string[];
     } = {},
   ) {
     this.query = query;
     this.songs = songs;
     this.playlist = playlist;
     this.queryType = queryType ?? SearchResultType.TRACK;
+    this.sources = sources;
   }
   /**
    * Whether the search returned nothing.
@@ -69,8 +79,26 @@ export class SearchResult<T = unknown> {
     return {
       query: this.query,
       queryType: this.queryType,
-      songs: this.songs.map(song => song.toString()),
-      playlist: this.playlist?.toString(),
+      sources: [...this.sources],
+      songs: this.songs.map(song => ({
+        id: song.id,
+        name: song.name,
+        url: song.url,
+        duration: song.duration,
+        formattedDuration: song.formattedDuration,
+        thumbnail: song.thumbnail,
+        source: song.source,
+        uploader: song.uploader,
+      })),
+      playlist: this.playlist
+        ? {
+            id: this.playlist.id,
+            name: this.playlist.name,
+            url: this.playlist.url,
+            thumbnail: this.playlist.thumbnail,
+            songs: this.playlist.songs.length,
+          }
+        : undefined,
     };
   }
 }

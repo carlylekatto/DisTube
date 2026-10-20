@@ -2,6 +2,7 @@ import type { Awaitable, ResolveOptions, SearchOptions } from "../type";
 import { PluginType } from "../type";
 import type { Playlist } from "./Playlist";
 import { Plugin } from "./Plugin";
+import { SearchResult } from "./SearchResult";
 import type { Song } from "./Song";
 
 /**
@@ -30,14 +31,18 @@ export abstract class ExtractorPlugin extends Plugin {
    * Search for the songs of a source.
    *
    * The default implementation returns the single result of
-   * {@link ExtractorPlugin#searchSong}. Override it to return more results.
+   * {@link ExtractorPlugin#searchSong}. Override it to return more results, or
+   * to return a playlist.
    * @param query   - Search query
    * @param options - Optional options
-   * @returns The songs that were found
+   * @returns The result of the search
    */
-  async search<T>(query: string, options: SearchOptions<T> = {}): Promise<Song<T>[]> {
+  async search<T>(query: string, options: SearchOptions<T> = {}): Promise<SearchResult<T>> {
     const song = await this.searchSong(query, options);
-    return song ? [song] : [];
+    return new SearchResult<T>(query, {
+      songs: song ? [song] : [],
+      queryType: options.type,
+    });
   }
   /**
    * Get the stream url from {@link Song#url}. Returns {@link Song#url} by default.
