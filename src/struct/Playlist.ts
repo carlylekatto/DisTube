@@ -96,6 +96,10 @@ export class Playlist<T = unknown> implements PlaylistInfo {
 
   set metadata(metadata: T) {
     this.#metadata = metadata;
+    // Do not wipe the metadata of the songs when there is no metadata:
+    // the songs may carry their own source specific metadata (stream url,
+    // identifiers, ...) that the plugin needs to play them.
+    if (metadata === undefined) return;
     this.songs.forEach(s => (s.metadata = metadata));
   }
 

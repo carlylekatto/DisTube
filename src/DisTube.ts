@@ -507,7 +507,8 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
   /**
    * Destroy the DisTube instance.
    *
-   * Stops every queue, leaves every voice channel and removes every listener.
+   * Stops every queue, leaves every voice channel, destroys every plugin and
+   * removes every listener.
    * Call it before your Discord.js client is destroyed to release all resources.
    */
   async destroy(): Promise<void> {
@@ -528,6 +529,14 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
       } catch (e: unknown) {
         const errorMessage = e instanceof Error ? e.message : String(e);
         this.debug(`[DisTube] Failed to leave the voice connection ${voice.id}: ${errorMessage}`);
+      }
+    }
+    for (const plugin of this.plugins) {
+      try {
+        await plugin.destroy();
+      } catch (e: unknown) {
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        this.debug(`[DisTube] Failed to destroy the plugin ${plugin.constructor.name}: ${errorMessage}`);
       }
     }
     this.removeAllListeners();

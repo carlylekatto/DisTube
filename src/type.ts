@@ -215,7 +215,7 @@ export type GuildIdResolvable =
   | Interaction
   | string;
 
-export interface SongInfo {
+export interface SongInfo<T = unknown> {
   plugin: DisTubePlugin | null;
   source: string;
   playFromSource: boolean;
@@ -234,6 +234,14 @@ export interface SongInfo {
     url?: string;
   };
   ageRestricted?: boolean;
+  /**
+   * Source specific metadata of the song.
+   *
+   * It is used by the plugin that created the song to keep the data it needs to
+   * play it (stream url, identifiers, ...). It is ignored when the song is
+   * created with a `metadata` option.
+   */
+  metadata?: T;
 }
 
 export interface PlaylistInfo {

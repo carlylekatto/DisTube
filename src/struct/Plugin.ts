@@ -27,4 +27,14 @@ export abstract class Plugin {
   getRelatedSongs(_song: Song): Awaitable<Song[]> {
     return [];
   }
+  /**
+   * Destroy the plugin.
+   *
+   * It is called when the {@link DisTube} instance is destroyed. Override it to
+   * release every resource held by the plugin (HTTP servers, timers, browser
+   * sessions, ...).
+   */
+  destroy(): void | Promise<void> {
+    // Nothing to destroy by default
+  }
 }

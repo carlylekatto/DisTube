@@ -71,8 +71,15 @@ type TemplateErrorCode = Exclude<keyof typeof ERROR_MESSAGES, StaticErrorCode>;
 
 const haveCode = (code: string): code is ErrorCode => Object.keys(ERROR_MESSAGES).includes(code);
 const parseMessage = (m: string | ((...x: any) => string), ...args: any) => (typeof m === "string" ? m : m(...args));
-const getErrorMessage = (code: string, ...args: any): string =>
-  haveCode(code) ? parseMessage(ERROR_MESSAGES[code], ...args) : args[0];
+const getErrorMessage = (code: string, ...args: any): string => {
+  if (!haveCode(code)) return args[0];
+  try {
+    return parseMessage(ERROR_MESSAGES[code], ...args);
+  } catch {
+    // The error code needs more arguments than the ones that were given.
+    return args[0] ?? code;
+  }
+};
 export class DisTubeError<T extends string = any> extends Error {
   errorCode: string;
   constructor(code: T extends StaticErrorCode ? T : never);
@@ -84,6 +91,25 @@ export class DisTubeError<T extends string = any> extends Error {
 
     this.errorCode = code;
     if (Error.captureStackTrace) Error.captureStackTrace(this, DisTubeError);
+  }
+
+  /**
+   * Create a {@link DisTubeError} with a custom message.
+   *
+   * The default message of an error code is a generic template. Use this factory
+   * when you need to tell the user what exactly went wrong, or when you want to
+   * keep the original error as the `cause` of the error.
+   *
+   * @param code    - The error code
+   * @param message - The custom message
+   * @param options - Optional options
+   * @returns The created error
+   */
+  static withMessage<T extends string = any>(code: T, message: string, options?: { cause?: unknown }): DisTubeError<T> {
+    const error = new DisTubeError(code as never, message as never);
+    error.message = message;
+    if (options && "cause" in options) error.cause = options.cause;
+    return error;
   }
 
   override get name() {

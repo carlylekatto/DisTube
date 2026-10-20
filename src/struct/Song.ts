@@ -104,9 +104,9 @@ export class Song<T = unknown> {
    * @param info      - Raw song info
    * @param options   - Optional data
    */
-  constructor(info: SongInfo, { member, metadata }: ResolveOptions<T> = {}) {
+  constructor(info: SongInfo<T>, { member, metadata }: ResolveOptions<T> = {}) {
     this.source = info.source.toLowerCase();
-    this.metadata = <T>metadata;
+    this.metadata = (metadata ?? info.metadata) as T;
     this.member = member;
     this.id = info.id;
     this.name = info.name;
