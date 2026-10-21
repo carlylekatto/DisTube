@@ -12,6 +12,7 @@ DisTube is a powerful and easy-to-use music library for Discord.js. This wiki pr
 - [[Projects Hub]] - Explore plugins and community projects.
 - [[Major Upgrade Guide]] - Essential reading for upgrading from older versions.
 - [[Frequently Asked Questions]] - Quick answers to common issues.
+- [[Hosting]] - Where to host a music bot.
 
 ## Support
 

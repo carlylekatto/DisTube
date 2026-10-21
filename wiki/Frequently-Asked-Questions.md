@@ -2,35 +2,7 @@
 
 ## DisTube
 
-### 1. Budget VPS Hosting
-
-Blazingly fast, reliable VMs in 16 global locations at an extremely affordable price!
-
-> Available locations: 🇺🇸 🇳🇱 🇸🇪 🇦🇹 🇳🇴 🇬🇧 🇨🇭 🇭🇰 🇸🇬 🇯🇵 🇦🇺\
-> Premium DisTube Bots are hosted on this provider in Chicago 🇺🇸
-> ​
-
-#### [Order Now!](https://skick.xyz/vps)
-
-All plans, even **4$** plan, use the below specification:
-
-- CPU: **AMD EPYC Milan**
-- SSD: **Samsung Enterprise NVMe Storage**
-- Public Network Port: **10Gbps | 40Gbps** (depends on location)
-
-| CPU<br/>vCore | RAM<br/>GB | Storage<br/>GB | Price<br/>US$ |
-| :-----------: | :--------: | :------------: | ------------: |
-|       1       |     2      |       10       |            $4 |
-|       2       |     4      |       20       |            $6 |
-|       2       |     8      |       35       |            $9 |
-|       4       |     12     |       50       |           $12 |
-|       6       |     24     |      100       |           $22 |
-|       8       |     32     |      125       |           $29 |
-|       8       |     48     |      150       |           $39 |
-|      12       |     64     |      200       |           $49 |
-|      16       |     96     |      250       |           $69 |
-
-### 2. FFMPEG_NOT_INSTALLED
+### 1. FFMPEG_NOT_INSTALLED
 
 #### Reason
 
@@ -42,7 +14,7 @@ All plans, even **4$** plan, use the below specification:
   > Download FFmpeg from [this repo](https://github.com/BtbN/FFmpeg-Builds/releases) if the download links are not available
 - If you want to run FFmpeg from a custom path, or `ffmpeg-static`.path, e.t.c., you can use [`ffmpeg.path`](https://distube.js.org/types/DisTubeOptions.html) option.
 
-### 3.1 The song ends instantly without any errors<br/>3.2 Error: write EPIPE
+### 2.1 The song ends instantly without any errors<br/>2.2 Error: write EPIPE
 
 #### Reason
 
@@ -57,7 +29,7 @@ import { Events } from "distube";
 distube.on(Events.FFMPEG_DEBUG, console.log);
 ```
 
-### 4.1 Error: Cannot find module '@discordjs/opus'<br/>4.2 RangeError: Source is too large<br/>4.3 RangeError: offset is out of bounds
+### 3.1 Error: Cannot find module '@discordjs/opus'<br/>3.2 RangeError: Source is too large<br/>3.3 RangeError: offset is out of bounds
 
 #### Reason
 
@@ -77,7 +49,7 @@ npm uninstall opusscript node-opus
 npm install @discordjs/opus
 ```
 
-### 5. Error: VOICE_CONNECTION_TIMEOUT
+### 4. Error: VOICE_CONNECTION_TIMEOUT
 
 #### Reason
 
@@ -90,7 +62,7 @@ npm install @discordjs/opus
 
 2. Use a better network service (like the above VPS)
 
-### 6.1 My bot plays a random song after finishing all the queue<br/>6.2 How to turn off autoplay<br/>6.3 How to change queue's default properties
+### 5.1 My bot plays a random song after finishing all the queue<br/>5.2 How to turn off autoplay<br/>5.3 How to change queue's default properties
 
 #### Reason
 
@@ -233,3 +205,7 @@ if (queue.stopped) { ... }
 // ✅ Check if the queue is still active (it is also true when it is paused)
 if (queue.isActive) { ... }
 ```
+
+## Hosting
+
+A bot that plays music needs a host that can reach the voice servers. See [[Hosting]].
