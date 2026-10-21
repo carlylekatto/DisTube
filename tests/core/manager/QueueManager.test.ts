@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DisTubeError, DisTubeStream, Events, Queue, QueueManager, type Song } from "@";
 
-vi.mock("src/core/DisTubeStream", () => ({
+vi.mock("@/core/DisTubeStream", () => ({
   DisTubeStream: vi.fn(() => ({ on: vi.fn() })),
 }));
 
