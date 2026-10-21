@@ -43,12 +43,16 @@ export abstract class Plugin {
   /**
    * Every identifier of this plugin: its {@link Plugin.source} and its
    * {@link Plugin.aliases}, lowercased.
+   *
+   * The static properties of the class are used when the instance ones are not
+   * defined, so a plugin can declare them either way.
    */
   get identifiers(): string[] {
     const names = new Set<string>();
-    const source = this.source ?? this.constructor.name.replace(/Plugin$/iu, "");
+    const ctor = this.constructor as { source?: string; aliases?: string[] };
+    const source = this.source ?? ctor.source ?? this.constructor.name.replace(/Plugin$/iu, "");
     if (source) names.add(source.toLowerCase());
-    for (const alias of this.aliases ?? []) {
+    for (const alias of this.aliases ?? ctor.aliases ?? []) {
       if (typeof alias === "string" && alias) names.add(alias.toLowerCase());
     }
     return [...names];
