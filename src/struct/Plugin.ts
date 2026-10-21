@@ -37,7 +37,14 @@ export abstract class Plugin {
    * DisTube
    */
   distube!: DisTube;
-  init(distube: DisTube) {
+  /**
+   * Initialize the plugin.
+   *
+   * It can be asynchronous: use {@link DisTube.create} to wait for the
+   * initialization of the plugins.
+   * @param distube - The DisTube instance
+   */
+  init(distube: DisTube): void | Promise<void> {
     this.distube = distube;
   }
   /**

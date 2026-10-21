@@ -187,7 +187,49 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
     this.filters = { ...defaultFilters, ...this.options.customFilters };
     this.plugins = [...this.options.plugins];
     this.streams = new StreamServer();
-    for (const p of this.plugins) p.init(this);
+    for (const p of this.plugins) {
+      const result = p.init(this);
+      // The plugins can do asynchronous work in their init. The rejection is
+      // caught: an unhandled rejection would crash the whole process.
+      if (result && typeof (result as Promise<void>).catch === "function") {
+        (result as Promise<void>).catch((e: unknown) => {
+          const error = e instanceof Error ? e : new Error(String(e));
+          this.debug(`[DisTube] The plugin ${p.constructor.name} failed to initialize: ${error.message}`);
+          process.emitWarning(`The plugin ${p.constructor.name} failed to initialize: ${error.message}`, {
+            code: "DIS_TUBE_PLUGIN_INIT_FAILED",
+            detail: error.stack ?? error.message,
+          });
+        });
+      }
+    }
+  }
+
+  /**
+   * Create a DisTube instance and wait for the plugins to be initialized.
+   *
+   * Use it when a plugin does asynchronous work in its `init` method: the
+   * constructor cannot await it.
+   * @param client - The Discord.js client
+   * @param opts   - Optional options
+   * @returns The DisTube instance
+   */
+  static async create(client: Client, opts: DisTubeOptions = {}): Promise<DisTube> {
+    const distube = new DisTube(client, opts);
+    await Promise.all(
+      distube.plugins.map(async plugin => {
+        try {
+          await plugin.init(distube);
+        } catch (e: unknown) {
+          const error = e instanceof Error ? e : new Error(String(e));
+          distube.debug(`[DisTube] The plugin ${plugin.constructor.name} failed to initialize: ${error.message}`);
+          process.emitWarning(`The plugin ${plugin.constructor.name} failed to initialize: ${error.message}`, {
+            code: "DIS_TUBE_PLUGIN_INIT_FAILED",
+            detail: error.stack ?? error.message,
+          });
+        }
+      }),
+    );
+    return distube;
   }
 
   /**

@@ -51,8 +51,15 @@ export function isURL(input: any): input is `${(typeof SUPPORTED_PROTOCOL)[numbe
  * @param options - options
  */
 export function checkIntents(options: ClientOptions): void {
-  const intents = options.intents instanceof IntentsBitField ? options.intents : new IntentsBitField(options.intents);
-  if (!intents.has(GatewayIntentBits.GuildVoiceStates)) throw new DisTubeError("MISSING_INTENTS", "GuildVoiceStates");
+  // The `instanceof` check is not used on purpose: a project can have more than
+  // one copy of discord.js in its tree (a linked package, a monorepo, ...), and
+  // the intents of the client would not be an instance of our own IntentsBitField.
+  const intents = options.intents as unknown as { has?: (bit: number | bigint) => boolean };
+  const hasVoiceStates =
+    typeof intents?.has === "function"
+      ? intents.has(GatewayIntentBits.GuildVoiceStates)
+      : new IntentsBitField(options.intents as never).has(GatewayIntentBits.GuildVoiceStates);
+  if (!hasVoiceStates) throw new DisTubeError("MISSING_INTENTS", "GuildVoiceStates");
 }
 
 /**

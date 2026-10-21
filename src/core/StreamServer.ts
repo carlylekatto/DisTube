@@ -196,6 +196,8 @@ export class StreamServer {
           const address = server.address();
           this.#boundPort = typeof address === "object" && address ? address.port : this.#port;
           this.#server = server;
+          // The server must not keep the process alive.
+          server.unref?.();
           resolve();
         });
       });
