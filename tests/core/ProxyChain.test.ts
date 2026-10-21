@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { DisTube, ExtractorPlugin, InfoExtractorPlugin, type Playlist, PluginType, type ResolveOptions, Song } from "@";
 
 const getProxySong = (song: Song): Song | undefined => (song.stream as { song?: Song }).song;
+
 const getProxyStreamUrl = (song: Song): string | undefined =>
   (getProxySong(song)?.stream as { url?: string } | undefined)?.url;
 
@@ -36,8 +37,45 @@ class SpotifyPlugin extends InfoExtractorPlugin {
   override async validate(): Promise<boolean> {
     return true;
   }
-  override async resolve<T>(_url: string, options: ResolveOptions<T>): Promise<Song<T> | Playlist<T>> {
-    return new Song<T>({ plugin: this, source: "spotify", playFromSource: true, id: "sp", name: "A song" }, options);
+  override async resolve<T>(_url: string, _options: ResolveOptions<T>): Promise<Song<T>> {
+    return new Song<T>(
+      {
+        plugin: this,
+        source: "spotify",
+        playFromSource: true,
+        id: "sp1",
+        name: "Never Gonna Give You Up",
+        uploader: { name: "Rick Astley" },
+      },
+      _options,
+    );
+  }
+  override async createSearchQuery<T>(_song: Song<T>): Promise<string> {
+    return "never gonna give you up";
+  }
+}
+
+/**
+ * A plugin that only knows the metadata of a song: the audio is played by
+ * another plugin.
+ */
+class InfoPlugin extends InfoExtractorPlugin {
+  override readonly source = "example";
+  override async validate(): Promise<boolean> {
+    return true;
+  }
+  override async resolve<T>(_url: string, options: ResolveOptions<T>): Promise<Song<T>> {
+    return new Song<T>(
+      {
+        plugin: this,
+        source: "example",
+        playFromSource: true,
+        id: "ex1",
+        name: "Never Gonna Give You Up",
+        uploader: { name: "Rick Astley" },
+      },
+      options,
+    );
   }
   override async createSearchQuery<T>(_song: Song<T>): Promise<string> {
     return "never gonna give you up";
@@ -126,5 +164,48 @@ describe("The fallback chain of the proxy", () => {
     await distube.handler.attachStreamInfo(song);
 
     expect(searchSong).not.toHaveBeenCalled();
+  });
+
+  it("skips a plugin that cannot play its own songs", async () => {
+    const info = new InfoPlugin();
+    const youtube = new YoutubePlugin();
+    const searchSong = vi.spyOn(info, "searchSong");
+    const distube = new DisTube(createMockClient(), { plugins: [info, youtube] });
+
+    const song = (await info.resolve("https://example.com/track/1", {})) as Song;
+    await distube.handler.attachStreamInfo(song);
+
+    expect(searchSong).not.toHaveBeenCalled();
+    expect(getProxySong(song)?.id).toBe("yt:never gonna give you up");
+  });
+
+  it("skips a result that cannot be played", async () => {
+    const info = new InfoPlugin();
+    const unplayable = new YoutubePlugin();
+    unplayable.searchSong = vi.fn().mockResolvedValue({
+      id: "not-playable",
+      name: "not playable",
+      source: "youtube",
+      playFromSource: false,
+      stream: { playFromSource: false },
+    } as any);
+    const playable = new YoutubePlugin();
+    const distube = new DisTube(createMockClient(), { plugins: [info, unplayable, playable] });
+
+    const song = (await info.resolve("https://example.com/track/1", {})) as Song;
+    await distube.handler.attachStreamInfo(song);
+
+    expect(getProxySong(song)?.id).toBe("yt:never gonna give you up");
+  });
+
+  it("keeps the metadata of the original song", async () => {
+    const info = new InfoPlugin();
+    const youtube = new YoutubePlugin();
+    const distube = new DisTube(createMockClient(), { plugins: [info, youtube] });
+
+    const song = (await info.resolve("https://example.com/track/1", { metadata: { requester: "user" } })) as Song;
+    await distube.handler.attachStreamInfo(song);
+
+    expect(song.metadata).toEqual({ requester: "user" });
   });
 });

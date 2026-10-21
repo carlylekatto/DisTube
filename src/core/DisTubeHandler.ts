@@ -201,10 +201,16 @@ export class DisTubeHandler extends DisTubeBase {
     const options: ResolveOptions = { metadata: song.metadata, member: song.member };
     for (const plugin of this.plugins) {
       if (plugin === source) continue;
+      // A plugin that cannot play its own songs cannot provide a playable
+      // version of them either.
+      if (plugin.playable === false) continue;
       const result = await plugin.searchSong(query, options);
       if (!result) continue;
+      // The result has to be playable, otherwise the playback would fail later
+      // with a confusing error.
+      if (!result.stream.playFromSource) continue;
       this.debug(`[${plugin.constructor.name}] Found a playable version of "${query}"`);
-      if (result.stream.playFromSource) result.stream.url = await plugin.getStreamURL(result);
+      result.stream.url = await plugin.getStreamURL(result);
       return result;
     }
     throw new DisTubeError("NO_RESULT", query);
