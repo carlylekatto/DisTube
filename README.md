@@ -37,6 +37,7 @@ DisTube is a comprehensive Discord music bot library built for [Discord.js](http
 | [Installation](https://deepwiki.com/skick1234/DisTube/Installation) | Detailed requirements and setup guide. |
 | [Guide](https://github.com/skick1234/DisTube/wiki) | Step-by-step handbook: installation, commands, plugins, filters and FAQ. |
 | [API Reference](https://distube.js.org/) | Complete technical documentation. |
+| [Changelog](https://github.com/skick1234/DisTube/blob/main/CHANGELOG.md) | What changed in every version. |
 | [Discord Support](https://discord.gg/feaDd9h) | Join our community for help and discussion. |
 
 ## 🚀 Quick Start
@@ -83,6 +84,10 @@ client.on('messageCreate', message => {
 
 client.login('TOKEN');
 ```
+
+> **v6**: the shortcut methods like `distube.pause(guild)` are gone. Use the queue instead:
+> `distube.getQueue(guild).pause()`. See the [changelog](https://github.com/skick1234/DisTube/blob/main/CHANGELOG.md)
+> for everything that changed.
 
 ## 🤝 Contributing
 
