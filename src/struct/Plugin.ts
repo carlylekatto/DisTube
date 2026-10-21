@@ -43,6 +43,13 @@ export abstract class Plugin {
    * It can be asynchronous: use {@link DisTube.create} to wait for the
    * initialization of the plugins.
    * @param distube - The DisTube instance
+   * @returns Nothing, or a promise that resolves when the plugin is initialized
+   * @example
+   * ```ts
+   * override async init(distube: DisTube) {
+   *   this.client = await createSession();
+   * }
+   * ```
    */
   init(distube: DisTube): void | Promise<void> {
     this.distube = distube;
@@ -78,9 +85,15 @@ export abstract class Plugin {
    *
    * Override it to enable the search of your source. It returns `null` by
    * default, because a source that cannot be searched does not have any result.
-   * @param query   - Search query
-   * @param options - Optional options
+   * @param _query   - Search query
+   * @param _options - Optional options
    * @returns The song that was found, or `null`
+   * @example
+   * ```ts
+   * override async searchSong(query: string): Promise<Song | null> {
+   *   return findSong(query);
+   * }
+   * ```
    */
   searchSong<T>(_query: string, _options: ResolveOptions<T>): Awaitable<Song<T> | null> {
     return null;
@@ -94,6 +107,10 @@ export abstract class Plugin {
    * @param query   - Search query
    * @param options - Optional options
    * @returns The result of the search
+   * @example
+   * ```ts
+   * const result = await plugin.search("Never gonna give you up", { limit: 5 });
+   * ```
    */
   async search<T>(query: string, options: SearchOptions<T> = {}): Promise<SearchResult<T>> {
     const song = await this.searchSong(query, options);
@@ -108,6 +125,12 @@ export abstract class Plugin {
    * It is used when the plugin cannot play the songs it resolves.
    * @param song - Input song
    * @returns The search query
+   * @example
+   * ```ts
+   * override createSearchQuery(song: Song): string {
+   *   return `${song.name} ${song.uploader?.name}`;
+   * }
+   * ```
    */
   createSearchQuery<T>(song: Song<T>): Awaitable<string> {
     return `${song.name ?? ""} ${song.uploader?.name ?? ""}`.trim();
@@ -117,7 +140,8 @@ export abstract class Plugin {
    *
    * Override it to enable the autoplay for your source. Return an empty array
    * when your source does not have any related songs.
-   * @param song - Input song
+   * @param _song - Input song
+   * @returns The related songs
    */
   getRelatedSongs(_song: Song): Awaitable<Song[]> {
     return [];
@@ -128,6 +152,7 @@ export abstract class Plugin {
    * It is called when the {@link DisTube} instance is destroyed. Override it to
    * release every resource held by the plugin (HTTP servers, timers, browser
    * sessions, ...).
+   * @returns Nothing, or a promise that resolves when the plugin is destroyed
    */
   destroy(): void | Promise<void> {
     // Nothing to destroy by default

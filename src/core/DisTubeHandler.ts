@@ -13,11 +13,52 @@ import { DisTubeBase } from "./DisTubeBase";
  * DisTube's Handler
  */
 export class DisTubeHandler extends DisTubeBase {
+  /**
+   * Resolve a {@link Song} to a {@link Song}.
+   * @param song    - The song to resolve
+   * @param options - Optional options
+   * @returns The resolved song
+   */
   resolve<T = unknown>(song: Song<T>, options?: Omit<ResolveOptions, "metadata">): Promise<Song<T>>;
+  /**
+   * Resolve a {@link Playlist} to a {@link Playlist}.
+   * @param song    - The playlist to resolve
+   * @param options - Optional options
+   * @returns The resolved playlist
+   */
   resolve<T = unknown>(song: Playlist<T>, options?: Omit<ResolveOptions, "metadata">): Promise<Playlist<T>>;
+  /**
+   * Resolve a url or a search query to a {@link Song} or a {@link Playlist}.
+   * @param song    - The url or the search query to resolve
+   * @param options - Optional options
+   * @returns The resolved song or playlist
+   */
   resolve<T = unknown>(song: string, options?: ResolveOptions<T>): Promise<Song<T> | Playlist<T>>;
+  /**
+   * Resolve a {@link Song} to a {@link Song}.
+   * @param song    - The song to resolve
+   * @param options - Optional options
+   * @returns The resolved song
+   */
   resolve<T = unknown>(song: Song, options: ResolveOptions<T>): Promise<Song<T>>;
+  /**
+   * Resolve a {@link Playlist} to a {@link Playlist}.
+   * @param song    - The playlist to resolve
+   * @param options - Optional options
+   * @returns The resolved playlist
+   */
   resolve<T = unknown>(song: Playlist, options: ResolveOptions<T>): Promise<Playlist<T>>;
+  /**
+   * Resolve a url or a supported object to a {@link Song} or {@link Playlist}
+   * @throws {@link DisTubeError}
+   * @param song    - Resolvable input
+   * @param options - Optional options
+   * @returns Resolved
+   * @example
+   * ```ts
+   * const song = await distube.handler.resolve("Never gonna give you up");
+   * ```
+   */
   resolve(song: string | Song | Playlist, options?: ResolveOptions): Promise<Song | Playlist>;
   /**
    * Resolve a url or a supported object to a {@link Song} or {@link Playlist}
@@ -54,12 +95,29 @@ export class DisTubeHandler extends DisTubeBase {
     throw new DisTubeError("CANNOT_RESOLVE_SONG", input);
   }
 
+  /**
+   * Find the plugin that supports the given url.
+   * @param url - The url to check
+   * @returns The plugin, or `null` when there is none
+   */
   async _getPluginFromURL(url: string): Promise<DisTubePlugin | null> {
     for (const plugin of this.plugins) if (await plugin.validate(url)) return plugin;
     return null;
   }
 
+  /**
+   * Find the plugin that can handle the given song.
+   * @param song - The song
+   * @returns The plugin, or `null` when there is none
+   */
   _getPluginFromSong(song: Song): Promise<DisTubePlugin | null>;
+  /**
+   * Find the plugin of the given type that can handle the given song.
+   * @param song     - The song
+   * @param types    - The types of the plugin to look for
+   * @param validate - Whether the url of the song has to be validated
+   * @returns The plugin, or `null` when there is none
+   */
   _getPluginFromSong<T extends PluginType>(
     song: Song,
     types: T[],
@@ -101,6 +159,9 @@ export class DisTubeHandler extends DisTubeBase {
   /**
    * Get {@link Song}'s stream info and attach it to the song.
    * @param song - A Song
+   * @returns A promise that resolves when the stream info is attached
+   * @throws {@link DisTubeError} When no plugin supports the song, or when its
+   * stream URL cannot be found
    */
   async attachStreamInfo(song: Song) {
     if (song.stream.playFromSource) {
@@ -149,6 +210,12 @@ export class DisTubeHandler extends DisTubeBase {
     throw new DisTubeError("NO_RESULT", query);
   }
 
+  /**
+   * Follow the redirections of an url.
+   * @param url        - The url to follow
+   * @param maxRedirect - The maximum number of redirections to follow
+   * @returns The final url
+   */
   async followRedirectLink(url: string, maxRedirect = MAX_REDIRECT_DEPTH): Promise<string> {
     if (maxRedirect === 0) return url;
 

@@ -171,6 +171,10 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
    * @throws {@link DisTubeError}
    * @param client - Discord.JS client
    * @param opts   - Custom DisTube options
+   * @example
+   * ```ts
+   * const distube = new DisTube(client, { nsfw: false });
+   * ```
    */
   constructor(client: Client, opts: DisTubeOptions = {}) {
     super();
@@ -212,6 +216,10 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
    * @param client - The Discord.js client
    * @param opts   - Optional options
    * @returns The DisTube instance
+   * @example
+   * ```ts
+   * const distube = await DisTube.create(client, { plugins: [new YoutubePlugin()] });
+   * ```
    */
   static async create(client: Client, opts: DisTubeOptions = {}): Promise<DisTube> {
     const distube = new DisTube(client, opts);
@@ -243,6 +251,7 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
    * (`"log"` by default).
    * @param event - The event name
    * @param args  - The event arguments
+   * @returns `true` when the event had listeners, `false` otherwise
    */
   override emit<U extends keyof TypedDisTubeEvents>(event: U, ...args: Parameters<TypedDisTubeEvents[U]>): boolean {
     if (event === Events.ERROR && this.listenerCount(Events.ERROR) === 0) {
@@ -260,6 +269,9 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
     handleUnhandledError(error, this.options?.unhandledError ?? "log");
   }
 
+  /**
+   * DisTube version
+   */
   static get version() {
     return version;
   }
@@ -279,6 +291,11 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
    *                       moved to this channel if {@link DisTubeOptions}.joinNewVoiceChannel is `true`
    * @param song         - URL | Search string | {@link Song} | {@link Playlist}
    * @param options      - Optional options
+   * @returns A promise that resolves when the song is added to the queue
+   * @example
+   * ```ts
+   * await distube.play(channel, "Never gonna give you up", { message });
+   * ```
    */
   async play<T = unknown>(
     voiceChannel: VoiceBasedChannel,
@@ -359,6 +376,9 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
    * Create a custom playlist
    * @param songs   - Array of url or Song
    * @param options - Optional options
+   * @returns The created playlist
+   * @throws {@link DisTubeError} When the array is empty, or when it does not
+   * have any valid song
    */
   async createCustomPlaylist(
     songs: (string | Song)[],
@@ -399,6 +419,11 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
   /**
    * Get the guild queue
    * @param guild - The type can be resolved to give a {@link Queue}
+   * @returns The queue of the guild, or `undefined` when there is none
+   * @example
+   * ```ts
+   * const queue = distube.getQueue(guildId);
+   * ```
    */
   getQueue(guild: GuildIdResolvable): Queue | undefined {
     return this.queues.get(guild);
@@ -412,6 +437,10 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
    * plugin does not define a source (`YoutubePlugin` -> `youtube`).
    * @param source - The identifier of the source
    * @returns The plugin, or `undefined` when there is none
+   * @example
+   * ```ts
+   * const plugin = distube.getPlugin("youtube");
+   * ```
    */
   getPlugin(source: string): DisTubePlugin | undefined {
     if (typeof source !== "string" || !source) return undefined;
@@ -427,6 +456,10 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
    * @param query   - The search query
    * @param options - Optional options
    * @returns The result of the search
+   * @example
+   * ```ts
+   * const result = await distube.search("Never gonna give you up", { limit: 5 });
+   * ```
    */
   async search<T = unknown>(query: string, options: SearchOptions<T> = {}): Promise<SearchResult<T>> {
     const limit = options.limit ?? 10;
@@ -461,19 +494,11 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
   /**
   /**
   /**
-  /**
-  /**
-  /**
-  /**
-  /**
-  /**
-  /**
-  /**
-  /**
    * Emit error event
    * @param error   - error
    * @param queue   - The queue encountered the error
    * @param song    - The playing song when encountered the error
+   * @returns Nothing
    */
   emitError(error: Error, queue: Queue, song?: Song): void {
     this.emit(Events.ERROR, error, queue, song);
@@ -482,6 +507,7 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
   /**
    * Emit debug event
    * @param message - debug message
+   * @returns Nothing
    */
   debug(message: string) {
     this.emit(Events.DEBUG, message);
@@ -493,6 +519,11 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
    * Stops every queue, leaves every voice channel, destroys every plugin and
    * removes every listener.
    * Call it before your Discord.js client is destroyed to release all resources.
+   * @returns A promise that resolves when every resource is released
+   * @example
+   * ```ts
+   * await distube.destroy();
+   * ```
    */
   async destroy(): Promise<void> {
     this.debug("[DisTube] Destroying the DisTube instance...");

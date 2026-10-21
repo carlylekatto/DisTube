@@ -47,11 +47,20 @@ export class PluginError<T extends PluginErrorCode = PluginErrorCode> extends Di
    * @param code    - The error code
    * @param message - The message. It defaults to the one of the error code.
    * @param options - Optional options
+   * @param options.cause - The original error that caused this one
+   * @example
+   * ```ts
+   * throw new PluginError(PluginErrorCode.NOT_FOUND);
+   * ```
    */
   constructor(code: T, message?: string, options?: { cause?: unknown }) {
     super(code, message ?? DEFAULT_MESSAGES[code]);
     if (options && "cause" in options) this.cause = options.cause;
   }
+  /**
+   * The name of the error, with its code.
+   * @returns The name of the error, e.g. `PluginError [NOT_FOUND]`
+   */
   override get name() {
     return `PluginError [${this.errorCode}]`;
   }

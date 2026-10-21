@@ -69,6 +69,7 @@ export type StreamHandler = (
 export interface Disposable {
   /**
    * Release the resource.
+   * @returns Nothing
    */
   dispose(): void;
 }
@@ -146,6 +147,13 @@ export class StreamServer {
    * @param source  - The identifier of the source
    * @param handler - The handler of the source
    * @returns A handle to unregister the source
+   * @example
+   * ```ts
+   * const disposable = distube.streams.register("my-source", async req => ({
+   *   body: Readable.from(Buffer.from("audio")),
+   *   contentType: "audio/mpeg",
+   * }));
+   * ```
    */
   register(source: string, handler: StreamHandler): Disposable {
     const key = source.toLowerCase();
@@ -165,6 +173,10 @@ export class StreamServer {
    * @param path   - The path after the source
    * @param query  - The query parameters
    * @returns The URL of the stream
+   * @example
+   * ```ts
+   * const url = await distube.streams.url("my-source", "abc123", { token: "secret" });
+   * ```
    */
   async url(source: string, path?: string, query?: Record<string, string | number | boolean>): Promise<string> {
     await this.#start();
@@ -175,6 +187,7 @@ export class StreamServer {
   }
   /**
    * Close the server and release every handler.
+   * @returns A promise that resolves when the server is closed
    */
   async close(): Promise<void> {
     this.#closed = true;

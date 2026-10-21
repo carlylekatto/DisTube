@@ -27,6 +27,14 @@ export interface StreamOptions {
 }
 
 let checked = process.env.NODE_ENV === "test";
+/**
+ * Check that FFmpeg is installed and can be spawned.
+ *
+ * The check is only done once: the result is cached.
+ * @param distube - The DisTube instance
+ * @returns Nothing
+ * @throws {@link DisTubeError} When FFmpeg cannot be spawned
+ */
 export const checkFFmpeg = (distube: DisTube) => {
   if (checked) return;
   const path = distube.options.ffmpeg.path;
@@ -61,8 +69,19 @@ export class DisTubeStream extends TypedEmitter<{
 }> {
   #ffmpegPath: string;
   #opts: string[];
+  /**
+   * The FFmpeg process that decodes the audio.
+   *
+   * It is `undefined` until {@link DisTubeStream#spawn} is called.
+   */
   process?: ChildProcess;
+  /**
+   * The stream of the decoded audio, with the volume applied to it.
+   */
   stream: VolumeTransformer;
+  /**
+   * The Discord.js audio resource that is played by the audio player.
+   */
   audioResource: AudioResource;
   /**
    * The seek time in seconds that this stream started from
@@ -131,6 +150,11 @@ export class DisTubeStream extends TypedEmitter<{
     });
   }
 
+  /**
+   * Spawn the FFmpeg process that decodes the audio.
+   * @returns Nothing
+   * @throws {Error} When the FFmpeg process cannot be created
+   */
   spawn() {
     this.debug(`[process] spawn: ${this.#ffmpegPath} ${this.#opts.join(" ")}`);
     this.process = spawn(this.#ffmpegPath, this.#opts, {
@@ -168,10 +192,19 @@ export class DisTubeStream extends TypedEmitter<{
     this.emit("debug", debug);
   }
 
+  /**
+   * Set the volume of the stream.
+   * @param volume - The volume of the stream, between `0` and `1`
+   * @returns Nothing
+   */
   setVolume(volume: number) {
     this.stream.vol = volume;
   }
 
+  /**
+   * Kill the FFmpeg process and destroy the stream.
+   * @returns Nothing
+   */
   kill() {
     if (!this.stream.destroyed) this.stream.destroy();
     if (this.process && !this.process.killed) this.process.kill("SIGKILL");

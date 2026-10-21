@@ -11,7 +11,9 @@ export class QueueManager extends GuildIdManager<Queue> {
    * Create a {@link Queue}
    * @param channel     - A voice channel
    * @param textChannel - Default text channel
-   * @returns Returns `true` if encounter an error
+   * @returns The created queue
+   * @throws {@link DisTubeError} When the guild already has a queue, or when
+   * the voice channel cannot be joined
    */
   async create(channel: VoiceBasedChannel, textChannel?: GuildTextBasedChannel): Promise<Queue> {
     if (this.has(channel.guildId)) throw new DisTubeError("QUEUE_EXIST");
@@ -54,6 +56,7 @@ export class QueueManager extends GuildIdManager<Queue> {
   /**
    * Handle the queue when a Song finish
    * @param queue - queue
+   * @returns A promise that resolves when the next song is playing
    */
   async handleSongFinish(queue: Queue): Promise<void> {
     if (queue._manualUpdate) {
@@ -136,6 +139,10 @@ export class QueueManager extends GuildIdManager<Queue> {
    * @param queue         - The guild queue to play
    * @param emitPlaySong  - Whether or not emit {@link Events.PLAY_SONG} event
    * @param options       - Optional options
+   * @param options.keepSongOnError - Whether the current song has to stay in the
+   * queue when the stream cannot be started
+   * @returns A promise that resolves when the song is playing
+   * @throws {@link DisTubeError} When the song does not have any stream URL
    */
   async playSong(queue: Queue, emitPlaySong = true, options?: { keepSongOnError?: boolean }) {
     if (!queue) return;

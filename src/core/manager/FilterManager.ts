@@ -10,6 +10,10 @@ export class FilterManager extends BaseManager<Filter> {
    * The queue to manage
    */
   queue: Queue;
+  /**
+   * Create a filter manager for a queue.
+   * @param queue - The queue to manage
+   */
   constructor(queue: Queue) {
     super(queue.distube);
     this.queue = queue;
@@ -42,6 +46,12 @@ export class FilterManager extends BaseManager<Filter> {
    * Enable a filter or multiple filters to the manager
    * @param filterOrFilters - The filter or filters to enable
    * @param override        - Wether or not override the applied filter with new filter value
+   * @returns This manager, to allow chaining
+   * @throws {@link DisTubeError} When a filter is not a valid {@link FilterResolvable}
+   * @example
+   * ```ts
+   * queue.filters.add("bassboost");
+   * ```
    */
   add(filterOrFilters: FilterResolvable | FilterResolvable[], override = false) {
     if (Array.isArray(filterOrFilters)) {
@@ -59,6 +69,7 @@ export class FilterManager extends BaseManager<Filter> {
 
   /**
    * Clear enabled filters of the manager
+   * @returns This manager, to allow chaining
    */
   clear() {
     return this.set([]);
@@ -67,6 +78,9 @@ export class FilterManager extends BaseManager<Filter> {
   /**
    * Set the filters applied to the manager
    * @param filters - The filters to apply
+   * @returns This manager, to allow chaining
+   * @throws {@link DisTubeError} When the array is invalid, or when a filter is
+   * not a valid {@link FilterResolvable}
    */
   set(filters: FilterResolvable[]) {
     if (!Array.isArray(filters)) throw new DisTubeError("INVALID_TYPE", "Array<FilterResolvable>", filters, "filters");
@@ -86,6 +100,8 @@ export class FilterManager extends BaseManager<Filter> {
   /**
    * Disable a filter or multiple filters
    * @param filterOrFilters - The filter or filters to disable
+   * @returns This manager, to allow chaining
+   * @throws {@link DisTubeError} When a filter is not a valid {@link FilterResolvable}
    */
   remove(filterOrFilters: FilterResolvable | FilterResolvable[]) {
     if (Array.isArray(filterOrFilters)) filterOrFilters.forEach(f => this.#removeFn(f));
@@ -97,6 +113,8 @@ export class FilterManager extends BaseManager<Filter> {
   /**
    * Check whether a filter enabled or not
    * @param filter - The filter to check
+   * @returns `true` when the filter is enabled
+   * @throws {@link DisTubeError} When the filter is not a valid {@link FilterResolvable}
    */
   has(filter: FilterResolvable) {
     return this.collection.has(typeof filter === "string" ? filter : this.#resolve(filter).name);
@@ -116,10 +134,19 @@ export class FilterManager extends BaseManager<Filter> {
     return [...this.collection.values()];
   }
 
+  /**
+   * The FFmpeg arguments of the enabled filters.
+   *
+   * It is the `af` output argument of the FFmpeg process.
+   */
   get ffmpegArgs(): FFmpegArgsValue {
     return this.size ? { af: this.values.map(f => f.value).join(",") } : {};
   }
 
+  /**
+   * The names of the enabled filters, as a comma separated string.
+   * @returns The names of the enabled filters
+   */
   override toString() {
     return this.names.toString();
   }

@@ -33,6 +33,15 @@ export class SearchResult<T = unknown> {
    * Create a search result.
    * @param query   - The query of the search
    * @param options - Optional data
+   * @param options.songs     - The songs that were found
+   * @param options.playlist  - The playlist that was found
+   * @param options.queryType - The kind of result that was looked for
+   * @param options.sources   - The identifiers of the plugins that contributed
+   * to the result
+   * @example
+   * ```ts
+   * const result = new SearchResult("Never gonna give you up", { songs: [song] });
+   * ```
    */
   constructor(
     query: string,
@@ -56,24 +65,28 @@ export class SearchResult<T = unknown> {
   }
   /**
    * Whether the search returned nothing.
+   * @returns `true` when the result has neither songs nor a playlist
    */
   isEmpty(): boolean {
     return this.songs.length === 0 && !this.playlist;
   }
   /**
    * Whether the search returned songs.
+   * @returns `true` when the result has at least one song
    */
   hasSongs(): boolean {
     return this.songs.length > 0;
   }
   /**
    * Whether the search returned a playlist.
+   * @returns `true` when the result has a playlist
    */
   hasPlaylist(): boolean {
     return Boolean(this.playlist);
   }
   /**
    * A plain object representation of the result.
+   * @returns The plain object representation of the result
    */
   toJSON(): object {
     return {
