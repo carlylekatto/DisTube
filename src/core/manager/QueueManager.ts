@@ -11,7 +11,9 @@ export class QueueManager extends GuildIdManager<Queue> {
    * Create a {@link Queue}
    * @param channel     - A voice channel
    * @param textChannel - Default text channel
-   * @returns Returns `true` if encounter an error
+   * @returns The created queue
+   * @throws {@link DisTubeError} When the guild already has a queue, or when
+   * the voice channel cannot be joined
    */
   async create(channel: VoiceBasedChannel, textChannel?: GuildTextBasedChannel): Promise<Queue> {
     if (this.has(channel.guildId)) throw new DisTubeError("QUEUE_EXIST");
@@ -54,6 +56,7 @@ export class QueueManager extends GuildIdManager<Queue> {
   /**
    * Handle the queue when a Song finish
    * @param queue - queue
+   * @returns A promise that resolves when the next song is playing
    */
   async handleSongFinish(queue: Queue): Promise<void> {
     if (queue._manualUpdate) {
@@ -92,6 +95,7 @@ export class QueueManager extends GuildIdManager<Queue> {
 
       if (queue.songs.length === 0) {
         this.debug(`[${queue.id}] Queue is empty, stopping...`);
+        this.emit(Events.EMPTY, queue);
         if (!queue.autoplay) this.emit(Events.FINISH, queue);
         queue.remove();
         return;
@@ -134,8 +138,13 @@ export class QueueManager extends GuildIdManager<Queue> {
    * Play a song on voice connection with queue properties
    * @param queue         - The guild queue to play
    * @param emitPlaySong  - Whether or not emit {@link Events.PLAY_SONG} event
+   * @param options       - Optional options
+   * @param options.keepSongOnError - Whether the current song has to stay in the
+   * queue when the stream cannot be started
+   * @returns A promise that resolves when the song is playing
+   * @throws {@link DisTubeError} When the song does not have any stream URL
    */
-  async playSong(queue: Queue, emitPlaySong = true) {
+  async playSong(queue: Queue, emitPlaySong = true, options?: { keepSongOnError?: boolean }) {
     if (!queue) return;
     if (queue.stopped || !queue.songs.length) {
       await queue.stop();
@@ -168,7 +177,14 @@ export class QueueManager extends GuildIdManager<Queue> {
       if (emitPlaySong) this.emit(Events.PLAY_SONG, queue, song);
     } catch (e: unknown) {
       const error = e instanceof Error ? e : new Error(String(e));
-      this.#handlePlayingError(queue, error);
+      if (options?.keepSongOnError) {
+        // The stream is only being restarted (e.g. after a filter change):
+        // the current song must stay in the queue even if the restart failed.
+        this.debug(`[${queue.id}] Error while restarting the stream: ${error.stack || error.message}`);
+        this.emitError(error, queue, queue.songs[0]);
+        return;
+      }
+      await this.#handlePlayingError(queue, error);
     }
   }
 }

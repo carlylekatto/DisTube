@@ -18,6 +18,8 @@ test("Default DisTubeOptions", () => {
     nsfw: false,
     plugins: [],
     savePreviousSongs: true,
+    stuckThreshold: 10000,
+    unhandledError: "log",
   });
 });
 

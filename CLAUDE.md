@@ -5,7 +5,6 @@ This document provides guidance for working with the DisTube codebase.
 ## Project Overview
 
 DisTube is a powerful Discord.js music bot library written in TypeScript that simplifies music commands and enables effortless playback from various sources with integrated audio filters.
-
 - **Node.js**: >= 22.12.0
 - **Discord.js**: v14
 - **Package Manager**: Bun
@@ -62,16 +61,20 @@ src/
 ## Architecture Patterns
 
 ### Event-Driven Architecture
+
 - Uses `tiny-typed-emitter` for type-safe event emission
-- 11 event types: `addList`, `addSong`, `playSong`, `finishSong`, `error`, `debug`, `ffmpegDebug`, `empty`, `finish`, `initQueue`, `noRelated`, `disconnect`, `deleteQueue`
+- 13 event types: `addList`, `addSong`, `playSong`, `finishSong`, `error`, `debug`, `ffmpegDebug`, `empty`, `finish`, `initQueue`, `noRelated`, `disconnect`, `deleteQueue`
 - Queue emits events through parent DisTube instance
+- **The special `error` event never crashes the process**: both `DisTube` and `DisTubeVoice` override `emit()` and fall back to `handleUnhandledError()` (in `src/util.ts`) when no listener is registered. The behavior is configurable with `DisTubeOptions.unhandledError` (`"log"` | `"throw"` | `"ignore"`).
 
 ### Manager Pattern
+
 - `BaseManager<V>` provides Collection-based storage
 - `GuildIdManager` extends with guild-keyed storage
 - Each manager handles lifecycle and state for its domain
 
 ### Plugin Architecture
+
 Three plugin types with different capabilities:
 - `ExtractorPlugin`: Full-featured (validate, resolve, search, getStreamURL)
 - `InfoExtractorPlugin`: Info only (validate, resolve, createSearchQuery)
@@ -82,21 +85,30 @@ Three plugin types with different capabilities:
 Audio and timing constants are defined in `src/constant.ts`:
 
 ```typescript
-AUDIO_SAMPLE_RATE = 48000      // Hz
-AUDIO_CHANNELS = 2             // Stereo
-DEFAULT_VOLUME = 50            // 0-100%
-JOIN_TIMEOUT_MS = 30_000       // 30 seconds
-RECONNECT_TIMEOUT_MS = 5_000   // 5 seconds
-RECONNECT_MAX_ATTEMPTS = 5     // Max rejoin attempts
-HTTP_REDIRECT_CODES            // Set of redirect status codes
-MAX_REDIRECT_DEPTH = 5         // Max redirect follows
+AUDIO_SAMPLE_RATE = 48000; // Hz
+AUDIO_CHANNELS = 2; // Stereo
+DEFAULT_VOLUME = 50; // 0-100%
+JOIN_TIMEOUT_MS = 30_000; // 30 seconds
+RECONNECT_TIMEOUT_MS = 5_000; // 5 seconds
+RECONNECT_MAX_ATTEMPTS = 5; // Max rejoin attempts
+STUCK_THRESHOLD_MS = 10_000; // Max buffering time before a track is skipped
+HTTP_REDIRECT_CODES; // Set of redirect status codes
+MAX_REDIRECT_DEPTH = 5; // Max redirect follows
 ```
 
 Always use these constants instead of magic numbers.
 
+## Reliability Guarantees
+
+- **Unhandled errors**: emitting `error` without a listener must never throw. Use `handleUnhandledError()` from `src/util.ts`.
+- **Stuck tracks**: `DisTubeVoice` watches the `AudioPlayerStatus.Buffering` state. When a track stays buffered for more than `DisTubeOptions.stuckThreshold` ms, a `TRACK_STUCK` error is emitted and the queue skips the track.
+- **Filter changes restart the stream**: FFmpeg audio filters are applied at stream creation, so `FilterManager` calls `Queue#_restartStream()`. The restart keeps the playback position and never removes the current song from the queue (`playSong(queue, emitPlaySong, { keepSongOnError: true })`).
+- **Cleanup**: call `distube.destroy()` to stop every queue, leave every voice channel and remove every listener.
+
 ## Coding Conventions
 
 ### TypeScript
+
 - Strict mode enabled with all strict checks
 - Use `type` imports: `import type { ... } from "..."`
 - Path aliases: `@/*` maps to `src/*`, `@` maps to `src/index.ts`
@@ -105,6 +117,7 @@ Always use these constants instead of magic numbers.
 - Use `catch (e: unknown)` instead of `catch (e: any)`
 
 ### Error Handling
+
 ```typescript
 // Good - type-safe error handling
 catch (e: unknown) {
@@ -119,6 +132,7 @@ catch (e: any) {
 ```
 
 ### Formatting (Biome)
+
 - 2 spaces indentation
 - 120 character line width
 - Double quotes for strings
@@ -126,6 +140,7 @@ catch (e: any) {
 - Arrow functions: parentheses only when needed (`x => x`, `(a, b) => a + b`)
 
 ### Naming Conventions
+
 - Classes: PascalCase (`DisTubeVoice`, `QueueManager`)
 - Methods/Properties: camelCase (`getQueue`, `playSong`)
 - Private fields: prefix with `#` or `_` for internal (`#getQueue`, `_beginTime`)
@@ -135,6 +150,7 @@ catch (e: any) {
 ## Error Handling
 
 ### DisTubeError Class
+
 Custom error class with predefined error codes and messages:
 
 ```typescript
@@ -150,6 +166,7 @@ throw new DisTubeError("CUSTOM_CODE", "Custom error message");
 ```
 
 ### Error Codes
+
 Key error categories:
 - Type validation: `INVALID_TYPE`, `EMPTY_ARRAY`, `EMPTY_STRING`, `INVALID_KEY`
 - Voice operations: `NOT_IN_VOICE`, `VOICE_FULL`, `VOICE_CONNECT_FAILED`
@@ -157,6 +174,7 @@ Key error categories:
 - Playback: `UNAVAILABLE_VIDEO`, `UNPLAYABLE_FORMATS`, `NON_NSFW`
 
 ### Validation Patterns
+
 Use utility functions from `src/util.ts`:
 ```typescript
 if (!isSupportedVoiceChannel(channel)) {
@@ -168,22 +186,25 @@ checkInvalidKey(options, validKeys, "options");
 ## Testing
 
 ### Test File Location
+
 Tests mirror source structure: `tests/core/`, `tests/struct/`
 
 ### Mocking Patterns
+
 ```typescript
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DisTubeError, Queue } from "@";
 
 vi.mock("@/core/DisTubeVoice");
 
-const createMockVoice = () => ({
-  id: "123",
-  stop: vi.fn(),
-  play: vi.fn(),
-  on: vi.fn(),
-  channel: { guild: { members: { me: {} } } },
-}) as any;
+const createMockVoice = () =>
+  ({
+    id: "123",
+    stop: vi.fn(),
+    play: vi.fn(),
+    on: vi.fn(),
+    channel: { guild: { members: { me: {} } } },
+  }) as any;
 
 describe("Queue", () => {
   beforeEach(() => {
@@ -197,6 +218,7 @@ describe("Queue", () => {
 ```
 
 ### Running Tests
+
 ```bash
 bun run test              # Run all tests
 bun run test -- --watch   # Watch mode
@@ -206,6 +228,7 @@ bun run test -- Queue     # Run specific test file
 ## Plugin Development
 
 ### Creating a Plugin
+
 ```typescript
 import { ExtractorPlugin, type Song, type Playlist } from "distube";
 
@@ -231,10 +254,12 @@ export class MyPlugin extends ExtractorPlugin {
 ## Git Workflow
 
 ### Branch Strategy
+
 - `main`: Production-ready code
 - Feature branches for development
 
 ### Commit Messages
+
 Follow Conventional Commits with PascalCase scope:
 ```
 feat(Queue): add shuffle functionality
@@ -246,18 +271,21 @@ chore(Release): 5.1.2
 Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `ci`
 
 ### Pre-commit Hooks (Husky)
+
 - `pre-commit`: Runs `bun exec nano-staged` (Biome check on staged files)
 - `commit-msg`: Validates commit message format
 
 ## Build & Release
 
 ### Build Output
+
 tsup produces dual ESM/CJS output:
 - `dist/index.js` (CJS)
 - `dist/index.mjs` (ESM)
 - `dist/index.d.ts` and `dist/index.d.mts` (types)
 
 ### Publishing Checklist
+
 1. Update version in `package.json`
 2. Run `bun run lint && bun run test`
 3. Build: `bun run build`
@@ -266,6 +294,7 @@ tsup produces dual ESM/CJS output:
 ## Debugging
 
 ### Debug Events
+
 Listen to debug events for troubleshooting:
 ```typescript
 distube.on(Events.DEBUG, console.log);
@@ -273,6 +302,7 @@ distube.on(Events.FFMPEG_DEBUG, console.log);
 ```
 
 ### Common Issues
+
 1. **Missing intents**: Ensure `GuildVoiceStates` intent is enabled
 2. **FFmpeg not found**: Install FFmpeg or set correct path in options
 3. **Encryption libraries**: Install one of the supported encryption packages
@@ -291,38 +321,63 @@ distube.on(Events.FFMPEG_DEBUG, console.log);
 - Test files: `*.test.ts` suffix
 - Types-only files: Named by content (`type.ts`, not `types.ts`)
 
-## Deprecations (v5.2 → v6.0)
+## Removed in v6.0
 
-The following methods are deprecated and will be removed in v6.0:
+The following API was deprecated in v5.2 and **removed in v6.0**:
 
 ### DisTube Shortcut Methods
+
 Use `distube.getQueue(guild).method()` instead of `distube.method(guild)`:
 
-| Deprecated | Replacement |
-|------------|-------------|
-| `distube.pause(guild)` | `distube.getQueue(guild).pause()` |
-| `distube.resume(guild)` | `distube.getQueue(guild).resume()` |
-| `distube.stop(guild)` | `distube.getQueue(guild).stop()` |
-| `distube.setVolume(guild, vol)` | `distube.getQueue(guild).setVolume(vol)` |
-| `distube.skip(guild, opts)` | `distube.getQueue(guild).skip(opts)` |
-| `distube.previous(guild)` | `distube.getQueue(guild).previous()` |
-| `distube.shuffle(guild)` | `distube.getQueue(guild).shuffle()` |
-| `distube.jump(guild, num, opts)` | `distube.getQueue(guild).jump(num, opts)` |
+| Removed                              | Replacement                                   |
+| ------------------------------------ | --------------------------------------------- |
+| `distube.pause(guild)`               | `distube.getQueue(guild).pause()`             |
+| `distube.resume(guild)`              | `distube.getQueue(guild).resume()`            |
+| `distube.stop(guild)`                | `distube.getQueue(guild).stop()`              |
+| `distube.setVolume(guild, vol)`      | `distube.getQueue(guild).setVolume(vol)`      |
+| `distube.skip(guild, opts)`          | `distube.getQueue(guild).skip(opts)`          |
+| `distube.previous(guild)`            | `distube.getQueue(guild).previous()`          |
+| `distube.shuffle(guild)`             | `distube.getQueue(guild).shuffle()`           |
+| `distube.jump(guild, num, opts)`     | `distube.getQueue(guild).jump(num, opts)`     |
 | `distube.setRepeatMode(guild, mode)` | `distube.getQueue(guild).setRepeatMode(mode)` |
-| `distube.toggleAutoplay(guild)` | `distube.getQueue(guild).toggleAutoplay()` |
-| `distube.addRelatedSong(guild)` | `distube.getQueue(guild).addRelatedSong()` |
-| `distube.seek(guild, time)` | `distube.getQueue(guild).seek(time)` |
+| `distube.toggleAutoplay(guild)`      | `distube.getQueue(guild).toggleAutoplay()`    |
+| `distube.addRelatedSong(guild)`      | `distube.getQueue(guild).addRelatedSong()`    |
+| `distube.seek(guild, time)`          | `distube.getQueue(guild).seek(time)`          |
 
 ### Queue Getter Methods
-Use properties directly instead of getter methods:
 
-| Deprecated | Replacement |
-|------------|-------------|
+Use the properties directly instead of the getter methods:
+
+| Removed             | Replacement     |
+| ------------------- | --------------- |
 | `queue.isPlaying()` | `!queue.paused` |
-| `queue.isPaused()` | `queue.paused` |
+| `queue.isPaused()`  | `queue.paused`  |
 
 ### Queue Properties
 
-| Deprecated | Replacement |
-|------------|-------------|
-| `queue.playing` | `!queue.paused` |
+| Removed         | Replacement                                         |
+| --------------- | --------------------------------------------------- |
+| `queue.playing` | `queue.isActive` (true unless the queue is stopped) |
+
+### Typo Aliases
+
+| Removed                  | Replacement               |
+| ------------------------ | ------------------------- |
+| `InfoExtratorPlugin`     | `InfoExtractorPlugin`     |
+| `PlayableExtratorPlugin` | `PlayableExtractorPlugin` |
+
+## Plugin API (v6)
+
+- One base class: `ExtractorPlugin`. `InfoExtractorPlugin` and
+  `PlayableExtractorPlugin` extend it and only change the `type`.
+- `searchSong()`, `search()` and `createSearchQuery()` live on `Plugin` with a
+  default implementation, so a plugin only implements what it supports.
+- `Plugin#source` and `Plugin#aliases` declare the identifiers of a source.
+  `distube.getPlugin(source)` finds a plugin by one of them.
+- `Plugin#playable` is `false` when the plugin cannot play the songs it
+  resolves. The `Song` constructor then forces `playFromSource` to `false`, and
+  the handler looks for a playable version with the other plugins.
+- `Plugin#destroy()` releases the resources of the plugin. `DisTube#destroy()`
+  calls it and closes the stream server.
+- `Plugin#streams` gives access to the shared local HTTP server of DisTube.
+- `PluginError` and `PluginErrorCode` are the errors a plugin raises.

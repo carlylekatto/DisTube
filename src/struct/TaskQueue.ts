@@ -12,6 +12,9 @@ class Task {
 
 /**
  * Task queuing system
+ *
+ * It makes sure that the tasks of a {@link Queue} are processed one after the
+ * other, instead of all at the same time.
  */
 export class TaskQueue {
   /**
@@ -21,6 +24,8 @@ export class TaskQueue {
 
   /**
    * Waits for last task finished and queues a new task
+   * @param isPlay - Whether the task is a play task
+   * @returns A promise that resolves when the last queued task is finished
    */
   queuing(isPlay = false): Promise<void> {
     const next = this.remaining ? this.#tasks[this.#tasks.length - 1].promise : Promise.resolve();
@@ -30,6 +35,7 @@ export class TaskQueue {
 
   /**
    * Removes the finished task and processes the next task
+   * @returns Nothing
    */
   resolve(): void {
     this.#tasks.shift()?.resolve();

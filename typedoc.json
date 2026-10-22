@@ -1,0 +1,15 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "DisTube API Documentation",
+  "plugin": ["typedoc-material-theme", "typedoc-plugin-extras"],
+  "themeColor": "#ED4245",
+  "entryPoints": ["src/index.ts"],
+  "out": "docs",
+  "sidebarLinks": {
+    "GitHub": "https://github.com/skick1234/DisTube",
+    "Discord": "https://discord.gg/feaDd9h",
+    "Guide": "https://github.com/skick1234/DisTube/wiki"
+  },
+  "hostedBaseUrl": "https://distube.js.org",
+  "favicon": "https://raw.githubusercontent.com/skick1234/cdn/refs/heads/main/DisTube/img/favicon.png"
+}

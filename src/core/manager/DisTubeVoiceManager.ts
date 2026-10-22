@@ -12,6 +12,9 @@ export class DisTubeVoiceManager extends GuildIdManager<DisTubeVoice> {
   /**
    * Create a {@link DisTubeVoice} instance
    * @param channel - A voice channel to join
+   * @returns The voice connection of the guild
+   * @throws {@link DisTubeError} When the guild already has a voice connection
+   * that is not managed by DisTube
    */
   create(channel: VoiceBasedChannel): DisTubeVoice {
     const existing = this.get(channel.guildId);
@@ -30,6 +33,8 @@ export class DisTubeVoiceManager extends GuildIdManager<DisTubeVoice> {
   /**
    * Join a voice channel and wait until the connection is ready
    * @param channel - A voice channel to join
+   * @returns The voice connection of the guild
+   * @throws {@link DisTubeError} When the connection cannot be established
    */
   join(channel: VoiceBasedChannel): Promise<DisTubeVoice> {
     const existing = this.get(channel.guildId);
@@ -39,6 +44,7 @@ export class DisTubeVoiceManager extends GuildIdManager<DisTubeVoice> {
   /**
    * Leave the connected voice channel in a guild
    * @param guild - Queue Resolvable
+   * @returns Nothing
    */
   leave(guild: GuildIdResolvable) {
     const voice = this.get(guild);

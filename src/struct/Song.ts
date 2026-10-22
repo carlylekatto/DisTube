@@ -60,7 +60,13 @@ export class Song<T = unknown> {
    * Song uploader
    */
   uploader: {
+    /**
+     * The name of the uploader.
+     */
     name?: string;
+    /**
+     * The URL of the uploader.
+     */
     url?: string;
   };
   /**
@@ -103,10 +109,12 @@ export class Song<T = unknown> {
    *
    * @param info      - Raw song info
    * @param options   - Optional data
+   * @param options.member   - The user that requested the song
+   * @param options.metadata - The metadata of the song
    */
-  constructor(info: SongInfo, { member, metadata }: ResolveOptions<T> = {}) {
+  constructor(info: SongInfo<T>, { member, metadata }: ResolveOptions<T> = {}) {
     this.source = info.source.toLowerCase();
-    this.metadata = <T>metadata;
+    this.metadata = (metadata ?? info.metadata) as T;
     this.member = member;
     this.id = info.id;
     this.name = info.name;
@@ -124,7 +132,9 @@ export class Song<T = unknown> {
       url: info.uploader?.url,
     };
     this.ageRestricted = info.ageRestricted;
-    this.stream = { playFromSource: info.playFromSource };
+    // A plugin that cannot play its own songs never has a stream: its songs are
+    // resolved to a playable version by another plugin.
+    this.stream = { playFromSource: info.playFromSource && info.plugin?.playable !== false };
     this.plugin = info.plugin;
   }
 
@@ -135,6 +145,11 @@ export class Song<T = unknown> {
     return this.#playlist;
   }
 
+  /**
+   * Set the playlist this song belongs to.
+   * @param playlist - The playlist
+   * @throws {@link DisTubeError} When the value is not a {@link Playlist}
+   */
   set playlist(playlist: Playlist | undefined) {
     if (!(playlist instanceof Playlist)) throw new DisTubeError("INVALID_TYPE", "Playlist", playlist, "Song#playlist");
     this.#playlist = playlist;
@@ -148,6 +163,12 @@ export class Song<T = unknown> {
     return this.#member;
   }
 
+  /**
+   * Set the user that requested this song.
+   *
+   * The value is ignored when it is not a valid guild member.
+   * @param member - The member
+   */
   set member(member: GuildMember | undefined) {
     if (isMemberInstance(member)) this.#member = member;
   }
@@ -167,10 +188,18 @@ export class Song<T = unknown> {
     return this.#metadata;
   }
 
+  /**
+   * Set the metadata of the song.
+   * @param metadata - The metadata
+   */
   set metadata(metadata: T) {
     this.#metadata = metadata;
   }
 
+  /**
+   * The name of the song, or its url, or its id.
+   * @returns The string representation of the song
+   */
   toString() {
     return this.name || this.url || this.id || "Unknown";
   }

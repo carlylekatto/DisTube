@@ -1,7 +1,7 @@
 # DisTube Guide
 
 > [!NOTE]
-> This guide follows the [discordjs.guide notation](https://discordjs.guide/additional-info/notation.html).
+> This guide follows the [discordjs.guide notation](https://discordjs.guide/additional-info/notation).
 
 ## Introduction
 
@@ -57,25 +57,17 @@ const { Events } = require("distube");
 
 distube
   .on(Events.PLAY_SONG, (queue, song) =>
-    queue.textChannel?.send(
-      `Playing \`${song.name}\` - \`${song.formattedDuration}\`\nRequested by: ${song.user}`,
-    ),
+    queue.textChannel?.send(`Playing \`${song.name}\` - \`${song.formattedDuration}\`\nRequested by: ${song.user}`),
   )
   .on(Events.ADD_SONG, (queue, song) =>
-    queue.textChannel?.send(
-      `Added ${song.name} - \`${song.formattedDuration}\` to the queue by ${song.user}`,
-    ),
+    queue.textChannel?.send(`Added ${song.name} - \`${song.formattedDuration}\` to the queue by ${song.user}`),
   )
   .on(Events.ERROR, (error, queue, song) => {
     console.error(error);
     queue.textChannel?.send(`An error occurred: ${error.message.slice(0, 1979)}`);
   })
-  .on(Events.EMPTY, queue =>
-    queue.textChannel?.send("Voice channel is empty! Leaving the channel...")
-  )
-  .on(Events.FINISH, queue =>
-    queue.textChannel?.send("Queue finished!")
-  );
+  .on(Events.EMPTY, queue => queue.textChannel?.send("Voice channel is empty! Leaving the channel..."))
+  .on(Events.FINISH, queue => queue.textChannel?.send("Queue finished!"));
 ```
 
 ### 3. Creating Commands
@@ -270,11 +262,7 @@ import { SpotifyPlugin } from "@distube/spotify";
 import { SoundCloudPlugin } from "@distube/soundcloud";
 
 const distube = new DisTube(client, {
-  plugins: [
-    new YouTubePlugin(),
-    new SpotifyPlugin(),
-    new SoundCloudPlugin(),
-  ],
+  plugins: [new YouTubePlugin(), new SpotifyPlugin(), new SoundCloudPlugin()],
 });
 ```
 
@@ -284,9 +272,9 @@ Set default queue properties using the `initQueue` event:
 
 ```javascript
 distube.on(Events.INIT_QUEUE, queue => {
-  queue.autoplay = false;        // Disable autoplay
-  queue.setVolume(50);           // Set default volume
-  queue.setRepeatMode(0);        // Disable repeat
+  queue.autoplay = false; // Disable autoplay
+  queue.setVolume(50); // Set default volume
+  queue.setRepeatMode(0); // Disable repeat
 });
 ```
 

@@ -8,18 +8,27 @@ import type { Options } from "./DisTubeOptions";
 import type { DisTubeVoiceManager } from "./manager/DisTubeVoiceManager";
 import type { QueueManager } from "./manager/QueueManager";
 
+/**
+ * The base class of every DisTube internal that needs a reference to the
+ * {@link DisTube} instance.
+ */
 export abstract class DisTubeBase {
+  /**
+   * The DisTube instance this object belongs to.
+   */
   distube: DisTube;
+  /**
+   * Create a new base object.
+   * @param distube - The DisTube instance
+   */
   constructor(distube: DisTube) {
-    /**
-     * DisTube
-     */
     this.distube = distube;
   }
   /**
    * Emit the {@link DisTube} of this base
    * @param eventName - Event name
    * @param args      - arguments
+   * @returns `true` when the event had listeners, `false` otherwise
    */
   emit(eventName: keyof DisTubeEvents, ...args: any): boolean {
     return this.distube.emit(eventName, ...args);
@@ -29,6 +38,7 @@ export abstract class DisTubeBase {
    * @param error   - error
    * @param queue   - The queue encountered the error
    * @param song    - The playing song when encountered the error
+   * @returns Nothing
    */
   emitError(error: Error, queue: Queue, song?: Song) {
     this.distube.emitError(error, queue, song);
@@ -36,6 +46,7 @@ export abstract class DisTubeBase {
   /**
    * Emit debug event
    * @param message - debug message
+   * @returns Nothing
    */
   debug(message: string) {
     this.distube.debug(message);

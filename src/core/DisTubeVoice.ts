@@ -13,7 +13,7 @@ import { TypedEmitter } from "tiny-typed-emitter";
 import { JOIN_TIMEOUT_MS, RECONNECT_MAX_ATTEMPTS, RECONNECT_TIMEOUT_MS } from "../constant";
 import { DisTubeError } from "../struct/DisTubeError";
 import type { DisTubeVoiceEvents } from "../type";
-import { checkEncryptionLibraries, isSupportedVoiceChannel } from "../util";
+import { checkEncryptionLibraries, handleUnhandledError, isSupportedVoiceChannel } from "../util";
 import type { DisTubeStream } from "./DisTubeStream";
 import type { DisTubeVoiceManager } from "./manager/DisTubeVoiceManager";
 
@@ -21,28 +21,67 @@ import type { DisTubeVoiceManager } from "./manager/DisTubeVoiceManager";
  * Create a voice connection to the voice channel
  */
 export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
+  /**
+   * The id of the guild of this voice connection.
+   */
   readonly id: Snowflake;
+  /**
+   * The voice manager that instantiated this connection.
+   */
   readonly voices: DisTubeVoiceManager;
+  /**
+   * The audio player that plays the audio of this connection.
+   */
   readonly audioPlayer: AudioPlayer;
+  /**
+   * The Discord.js voice connection.
+   */
   connection!: VoiceConnection;
+  /**
+   * Whether or not an error was already emitted for the current stream.
+   *
+   * It prevents the same error from being emitted several times.
+   */
   emittedError!: boolean;
+  /**
+   * Whether or not the voice connection has been disconnected.
+   */
   isDisconnected = false;
+  /**
+   * The stream that is currently playing.
+   */
   stream?: DisTubeStream;
+  /**
+   * The stream that was playing when the playback was paused.
+   */
   pausingStream?: DisTubeStream;
   #channel!: VoiceBasedChannel;
   #volume = 100;
+  /**
+   * Timer used to detect a track that is stuck in the "buffering" state.
+   */
+  #stuckTimer?: NodeJS.Timeout;
+  /**
+   * Create a voice connection to the voice channel.
+   * @param voiceManager - The voice manager of the DisTube instance
+   * @param channel      - The voice channel to join
+   */
   constructor(voiceManager: DisTubeVoiceManager, channel: VoiceBasedChannel) {
     super();
-    /**
-     * The voice manager that instantiated this connection
-     */
     this.voices = voiceManager;
     this.id = channel.guildId;
     this.channel = channel;
     this.voices.add(this.id, this);
     this.audioPlayer = createAudioPlayer()
       .on(AudioPlayerStatus.Idle, oldState => {
+        this.#clearStuckTimer();
         if (oldState.status !== AudioPlayerStatus.Idle) this.emit("finish");
+      })
+      .on(AudioPlayerStatus.Buffering, () => {
+        this.#startStuckTimer();
+      })
+      .on(AudioPlayerStatus.Playing, () => {
+        this.#clearStuckTimer();
       })
       .on("error", (error: NodeJS.ErrnoException) => {
         if (this.emittedError) return;
@@ -88,6 +127,11 @@ export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
   get channelId() {
     return this.connection?.joinConfig?.channelId ?? undefined;
   }
+  /**
+   * The voice channel the bot is in.
+   *
+   * Setting it moves the bot to another voice channel.
+   */
   get channel() {
     if (!this.channelId) return this.#channel;
     if (this.#channel?.id === this.channelId) return this.#channel;
@@ -101,6 +145,12 @@ export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
     }
     return this.#channel;
   }
+  /**
+   * Move the bot to another voice channel.
+   * @param channel - The voice channel to join
+   * @throws {@link DisTubeError} When the channel is invalid, when it belongs to
+   * another guild or client, or when the bot cannot join it
+   */
   set channel(channel: VoiceBasedChannel) {
     if (!isSupportedVoiceChannel(channel)) {
       throw new DisTubeError("INVALID_TYPE", "BaseGuildVoiceChannel", channel, "DisTubeVoice#channel");
@@ -121,11 +171,17 @@ export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
       guildId: this.id,
       adapterCreator: channel.guild.voiceAdapterCreator,
       group: channel.client.user?.id,
+      // DAVE is the end-to-end encryption protocol used by Discord.
+      // It is enabled explicitly so that a change of the upstream default
+      // can never silently disable the encryption.
+      daveEncryption: true,
     });
   }
   /**
    * Join a voice channel with this connection
    * @param channel - A voice channel
+   * @returns The voice connection
+   * @throws {@link DisTubeError} When the connection cannot be established
    */
   async join(channel?: VoiceBasedChannel): Promise<DisTubeVoice> {
     if (channel) this.channel = channel;
@@ -142,6 +198,7 @@ export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
   /**
    * Leave the voice channel of this connection
    * @param error - Optional, an error to emit with 'error' event.
+   * @returns Nothing
    */
   leave(error?: Error) {
     this.stop(true);
@@ -156,6 +213,7 @@ export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
    * Stop the playing stream
    * @param force - If true, will force the {@link DisTubeVoice#audioPlayer} to enter the Idle state even
    *                if the {@link DisTubeStream#audioResource} has silence padding frames.
+   * @returns Nothing
    */
   stop(force = false) {
     this.audioPlayer.stop(force);
@@ -164,6 +222,8 @@ export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
   /**
    * Play a {@link DisTubeStream}
    * @param dtStream - DisTubeStream
+   * @returns A promise that resolves when the stream is playing
+   * @throws {@link DisTubeError} When no encryption library is available
    */
   async play(dtStream: DisTubeStream) {
     if (!(await checkEncryptionLibraries())) {
@@ -191,6 +251,12 @@ export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
     this.stream = dtStream;
     this.volume = this.#volume;
   }
+  /**
+   * Set the volume percentage of the stream.
+   * @param volume - The volume percentage, from `0` to `100`
+   * @throws {@link DisTubeError} When the volume is not a number, or when it is
+   * negative
+   */
   set volume(volume: number) {
     if (typeof volume !== "number" || Number.isNaN(volume)) {
       throw new DisTubeError("INVALID_TYPE", "number", volume, "volume");
@@ -219,9 +285,20 @@ export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
   get playbackTime() {
     return this.playbackDuration + (this.stream?.seekTime ?? 0);
   }
+  /**
+   * Pause the playback of the audio player.
+   * @returns Nothing
+   */
   pause() {
     this.audioPlayer.pause();
   }
+  /**
+   * Resume the playback of the audio player.
+   *
+   * The FFmpeg process is spawned again when the stream was killed while the
+   * playback was paused.
+   * @returns Nothing
+   */
   unpause() {
     const state = this.audioPlayer.state;
     if (state.status !== AudioPlayerStatus.Paused) return;
@@ -233,6 +310,51 @@ export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
     } else {
       this.audioPlayer.unpause();
     }
+  }
+  /**
+   * Emit an event of the voice connection.
+   *
+   * The special `"error"` event never crashes the process when there is no
+   * listener for it, even when the voice connection is used outside of a
+   * {@link Queue}.
+   * @param event - The event name
+   * @param args  - The event arguments
+   * @returns `true` when the event had listeners, `false` otherwise
+   */
+  override emit<U extends keyof DisTubeVoiceEvents>(event: U, ...args: Parameters<DisTubeVoiceEvents[U]>): boolean {
+    if (event === "error" && this.listenerCount("error") === 0) {
+      handleUnhandledError(args[0] as Error, this.voices.options?.unhandledError ?? "log");
+      return false;
+    }
+    return super.emit(event, ...args);
+  }
+
+  /**
+   * Start the timer that detects a track stuck in the "buffering" state.
+   *
+   * When the track does not start playing within
+   * {@link DisTubeOptions.stuckThreshold} milliseconds, it is reported as an error
+   * so that the queue can skip it.
+   */
+  #startStuckTimer() {
+    const threshold = this.voices.options.stuckThreshold;
+    if (typeof threshold !== "number" || threshold <= 0) return;
+    this.#clearStuckTimer();
+    this.#stuckTimer = setTimeout(() => {
+      this.#stuckTimer = undefined;
+      if (this.emittedError) return;
+      this.emittedError = true;
+      this.emit("error", new DisTubeError("TRACK_STUCK"));
+    }, threshold);
+    this.#stuckTimer.unref?.();
+  }
+  /**
+   * Clear the stuck-track detection timer.
+   */
+  #clearStuckTimer() {
+    if (!this.#stuckTimer) return;
+    clearTimeout(this.#stuckTimer);
+    this.#stuckTimer = undefined;
   }
   /**
    * Whether the bot is self-deafened
@@ -250,6 +372,7 @@ export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
    * Self-deafens/undeafens the bot.
    * @param selfDeaf - Whether or not the bot should be self-deafened
    * @returns true if the voice state was successfully updated, otherwise false
+   * @throws {@link DisTubeError} When the value is not a boolean
    */
   setSelfDeaf(selfDeaf: boolean): boolean {
     if (typeof selfDeaf !== "boolean") {
@@ -264,6 +387,7 @@ export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
    * Self-mutes/unmutes the bot.
    * @param selfMute - Whether or not the bot should be self-muted
    * @returns true if the voice state was successfully updated, otherwise false
+   * @throws {@link DisTubeError} When the value is not a boolean
    */
   setSelfMute(selfMute: boolean): boolean {
     if (typeof selfMute !== "boolean") {

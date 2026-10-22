@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DisTubeError, DisTubeStream, Events, Queue, QueueManager, type Song } from "@";
 
-vi.mock("src/core/DisTubeStream", () => ({
+vi.mock("@/core/DisTubeStream", () => ({
   DisTubeStream: vi.fn(() => ({ on: vi.fn() })),
 }));
 
@@ -166,10 +166,92 @@ describe("QueueManager", () => {
         // Should NOT emit FINISH event when autoplay is true
         expect(mockDisTube.emit).not.toHaveBeenCalledWith(Events.FINISH, queue);
       });
+
+      it("emits EMPTY when the queue runs out of songs", async () => {
+        const queue = new Queue(mockDisTube, createMockVoice());
+        const onlySong = { id: "only", stream: { playFromSource: true } } as Song;
+
+        queue.songs = [onlySong];
+        queue.previousSongs = [];
+        queue.autoplay = false;
+        queue._manualUpdate = false;
+
+        vi.spyOn(queueManager, "playSong").mockResolvedValue(undefined);
+        vi.spyOn(queue, "remove").mockImplementation(() => {});
+
+        await queueManager.handleSongFinish(queue);
+
+        expect(mockDisTube.emit).toHaveBeenCalledWith(Events.EMPTY, queue);
+        expect(mockDisTube.emit).toHaveBeenCalledWith(Events.FINISH, queue);
+      });
+
+      it("does not emit EMPTY while there are still songs left", async () => {
+        const queue = new Queue(mockDisTube, createMockVoice());
+        const song1 = { id: "1", stream: {} } as Song;
+        const song2 = { id: "2", stream: {} } as Song;
+
+        queue.songs = [song1, song2];
+        queue.previousSongs = [];
+        queue.autoplay = false;
+        queue._manualUpdate = false;
+
+        vi.spyOn(queueManager, "playSong").mockResolvedValue(undefined);
+
+        await queueManager.handleSongFinish(queue);
+
+        expect(mockDisTube.emit).not.toHaveBeenCalledWith(Events.EMPTY, queue);
+      });
     });
   });
 
   describe("playSong", () => {
+    describe("keepSongOnError", () => {
+      it("keeps the current song in the queue when the restart fails", async () => {
+        const mockDisTube = createMockDisTube({
+          emitError: vi.fn(),
+          queues: { remove: vi.fn() },
+        });
+        const queueManager = new QueueManager(mockDisTube);
+        const queue = new Queue(mockDisTube, createMockVoice());
+        const song = {
+          id: "1",
+          duration: 180,
+          stream: { playFromSource: true, url: "http://test.com/stream" },
+        } as Song;
+        queue.songs = [song];
+
+        mockDisTube.handler.attachStreamInfo.mockRejectedValue(new Error("stream unavailable"));
+
+        await queueManager.playSong(queue, false, { keepSongOnError: true });
+
+        expect(queue.songs).toContain(song);
+        expect(mockDisTube.emitError).toHaveBeenCalledWith(expect.any(Error), queue, song);
+      });
+
+      it("removes the current song from the queue when the playback fails", async () => {
+        const mockDisTube = createMockDisTube({
+          emitError: vi.fn(),
+          queues: { remove: vi.fn() },
+        });
+        const queueManager = new QueueManager(mockDisTube);
+        const queue = new Queue(mockDisTube, createMockVoice());
+        const song = {
+          id: "1",
+          duration: 180,
+          stream: { playFromSource: true, url: "http://test.com/stream" },
+        } as Song;
+        queue.songs = [song];
+
+        mockDisTube.handler.attachStreamInfo.mockRejectedValue(new Error("stream unavailable"));
+        vi.spyOn(queue, "stop").mockResolvedValue(undefined);
+
+        await queueManager.playSong(queue);
+
+        expect(queue.songs).not.toContain(song);
+        expect(mockDisTube.emitError).toHaveBeenCalled();
+      });
+    });
+
     describe("_beginTime reset", () => {
       beforeEach(() => {
         vi.clearAllMocks();

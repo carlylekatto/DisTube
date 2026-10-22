@@ -1,6 +1,6 @@
 import { AudioPlayerStatus, VoiceConnectionStatus } from "@discordjs/voice";
 import { ChannelType } from "discord.js";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Use a mutable object to store mocks (survives hoisting)
 const mocks = {
@@ -52,7 +52,7 @@ vi.mock("@discordjs/voice", async importOriginal => {
 import { DisTubeError, DisTubeVoice } from "@";
 
 describe("DisTubeVoice", () => {
-  const createMockVoiceManager = () =>
+  const createMockVoiceManager = (overrides = {}) =>
     ({
       client: {
         user: { id: "987654321098765432" },
@@ -65,8 +65,13 @@ describe("DisTubeVoice", () => {
           },
         },
       },
+      options: {
+        unhandledError: "log",
+        stuckThreshold: 10_000,
+      },
       add: vi.fn(),
       remove: vi.fn(),
+      ...overrides,
     }) as any;
 
   // Use valid snowflake IDs (17-20 digit strings)
@@ -364,6 +369,98 @@ describe("DisTubeVoice", () => {
         }),
       );
       expect(result).toBe(true);
+    });
+  });
+
+  describe("stuck track detection", () => {
+    const getAudioPlayerHandler = (event: string) => {
+      const calls = mocks.audioPlayer.on.mock.calls as [string, (...args: any[]) => void][];
+      return calls.find(call => call[0] === event)?.[1] as ((...args: any[]) => void) | undefined;
+    };
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("emits an error when the track stays in the buffering state", () => {
+      vi.useFakeTimers();
+      const manager = createMockVoiceManager({ options: { unhandledError: "log", stuckThreshold: 5_000 } });
+      const channel = createMockChannel();
+      const voice = new DisTubeVoice(manager, channel);
+      const errorHandler = vi.fn();
+      voice.on("error", errorHandler);
+
+      getAudioPlayerHandler(AudioPlayerStatus.Buffering)?.();
+      vi.advanceTimersByTime(5_000);
+
+      expect(errorHandler).toHaveBeenCalledTimes(1);
+      expect(errorHandler.mock.calls[0]?.[0]).toBeInstanceOf(DisTubeError);
+      expect((errorHandler.mock.calls[0]?.[0] as DisTubeError | undefined)?.errorCode).toBe("TRACK_STUCK");
+    });
+
+    it("does not emit an error when the track starts playing in time", () => {
+      vi.useFakeTimers();
+      const manager = createMockVoiceManager({ options: { unhandledError: "log", stuckThreshold: 5_000 } });
+      const channel = createMockChannel();
+      const voice = new DisTubeVoice(manager, channel);
+      const errorHandler = vi.fn();
+      voice.on("error", errorHandler);
+
+      getAudioPlayerHandler(AudioPlayerStatus.Buffering)?.();
+      vi.advanceTimersByTime(1_000);
+      getAudioPlayerHandler(AudioPlayerStatus.Playing)?.();
+      vi.advanceTimersByTime(10_000);
+
+      expect(errorHandler).not.toHaveBeenCalled();
+    });
+
+    it("does not detect stuck tracks when the threshold is disabled", () => {
+      vi.useFakeTimers();
+      const manager = createMockVoiceManager({ options: { unhandledError: "log", stuckThreshold: 0 } });
+      const channel = createMockChannel();
+      const voice = new DisTubeVoice(manager, channel);
+      const errorHandler = vi.fn();
+      voice.on("error", errorHandler);
+
+      getAudioPlayerHandler(AudioPlayerStatus.Buffering)?.();
+      vi.advanceTimersByTime(60_000);
+
+      expect(errorHandler).not.toHaveBeenCalled();
+    });
+
+    it("clears the timer when the audio player becomes idle", () => {
+      vi.useFakeTimers();
+      const manager = createMockVoiceManager({ options: { unhandledError: "log", stuckThreshold: 5_000 } });
+      const channel = createMockChannel();
+      const voice = new DisTubeVoice(manager, channel);
+      const errorHandler = vi.fn();
+      voice.on("error", errorHandler);
+
+      getAudioPlayerHandler(AudioPlayerStatus.Buffering)?.();
+      getAudioPlayerHandler(AudioPlayerStatus.Idle)?.({ status: AudioPlayerStatus.Buffering });
+      vi.advanceTimersByTime(10_000);
+
+      expect(errorHandler).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("error event safety", () => {
+    it("does not throw when the error event has no listener", () => {
+      const manager = createMockVoiceManager();
+      const channel = createMockChannel();
+      const voice = new DisTubeVoice(manager, channel);
+      const warn = vi.spyOn(process, "emitWarning").mockImplementation(() => {});
+
+      expect(() => voice.emit("error", new Error("boom"))).not.toThrow();
+      expect(warn).toHaveBeenCalledTimes(1);
+    });
+
+    it("re-throws the error when unhandledError is 'throw'", () => {
+      const manager = createMockVoiceManager({ options: { unhandledError: "throw", stuckThreshold: 10_000 } });
+      const channel = createMockChannel();
+      const voice = new DisTubeVoice(manager, channel);
+
+      expect(() => voice.emit("error", new Error("boom"))).toThrow("boom");
     });
   });
 

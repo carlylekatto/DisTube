@@ -31,12 +31,14 @@ DisTube is a comprehensive Discord music bot library built for [Discord.js](http
 
 ## 📚 Resources
 
-| Resource | Description |
-| --- | --- |
-| [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/skick1234/DisTube) | Learn DisTube with AI-powered assistance. |
-| [Installation](https://deepwiki.com/skick1234/DisTube/Installation) | Detailed requirements and setup guide. |
-| [API Reference](https://distube.js.org/) | Complete technical documentation. |
-| [Discord Support](https://discord.gg/feaDd9h) | Join our community for help and discussion. |
+| Resource                                                                                  | Description                                                              |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/skick1234/DisTube) | Learn DisTube with AI-powered assistance.                                |
+| [Installation](https://deepwiki.com/skick1234/DisTube/Installation)                       | Detailed requirements and setup guide.                                   |
+| [Guide](https://github.com/skick1234/DisTube/wiki)                                        | Step-by-step handbook: installation, commands, plugins, filters and FAQ. |
+| [API Reference](https://distube.js.org/)                                                  | Complete technical documentation.                                        |
+| [Changelog](https://github.com/skick1234/DisTube/blob/main/CHANGELOG.md)                  | What changed in every version.                                           |
+| [Discord Support](https://discord.gg/feaDd9h)                                             | Join our community for help and discussion.                              |
 
 ## 🚀 Quick Start
 
@@ -44,9 +46,14 @@ DisTube is a comprehensive Discord music bot library built for [Discord.js](http
 npm install distube @discordjs/voice @discordjs/opus
 ```
 
+```bash
+# Bun is recommended
+bun add distube @discordjs/voice @discordjs/opus
+```
+
 ```javascript
-const { DisTube } = require('distube');
-const { Client, GatewayIntentBits } = require('discord.js');
+const { DisTube } = require("distube");
+const { Client, GatewayIntentBits } = require("discord.js");
 
 const client = new Client({
   intents: [
@@ -61,12 +68,12 @@ const distube = new DisTube(client, {
   emitNewSongOnly: true,
 });
 
-distube.on('playSong', (queue, song) =>
-  queue.textChannel.send(`Playing \`${song.name}\` - \`${song.formatDuration()}\``)
+distube.on("playSong", (queue, song) =>
+  queue.textChannel.send(`Playing \`${song.name}\` - \`${song.formattedDuration}\``),
 );
 
-client.on('messageCreate', message => {
-  if (message.content.startsWith('!play')) {
+client.on("messageCreate", message => {
+  if (message.content.startsWith("!play")) {
     distube.play(message.member.voice.channel, message.content.slice(6), {
       message,
       textChannel: message.channel,
@@ -75,8 +82,12 @@ client.on('messageCreate', message => {
   }
 });
 
-client.login('TOKEN');
+client.login("TOKEN");
 ```
+
+> **v6**: the shortcut methods like `distube.pause(guild)` are gone. Use the queue instead:
+> `distube.getQueue(guild).pause()`. See the [changelog](https://github.com/skick1234/DisTube/blob/main/CHANGELOG.md)
+> for everything that changed.
 
 ## 🤝 Contributing
 

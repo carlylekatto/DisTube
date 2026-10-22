@@ -42,10 +42,13 @@ const inactivityTimers = new Map();
 
 // Start timer when queue finishes
 distube.on(Events.FINISH, queue => {
-  const timer = setTimeout(() => {
-    queue.voice.leave();
-    inactivityTimers.delete(queue.id);
-  }, 5 * 60 * 1000); // 5 minutes
+  const timer = setTimeout(
+    () => {
+      queue.voice.leave();
+      inactivityTimers.delete(queue.id);
+    },
+    5 * 60 * 1000,
+  ); // 5 minutes
 
   inactivityTimers.set(queue.id, timer);
 });

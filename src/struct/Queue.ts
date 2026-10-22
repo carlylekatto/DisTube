@@ -36,14 +36,10 @@ export class Queue extends DisTubeBase {
    */
   stopped: boolean;
   /**
-   * Whether or not the queue is active.
-   *
-   * Note: This remains `true` when paused. It only becomes `false` when stopped.
-   * @deprecated Use `!queue.paused` to check if audio is playing. Will be removed in v6.0.
-   */
-  playing: boolean;
-  /**
    * Whether or not the stream is currently paused.
+   *
+   * It is also `true` once the queue has been stopped, so that `!queue.paused`
+   * stays `false` as soon as the queue is not playing anymore.
    */
   paused: boolean;
   /**
@@ -100,7 +96,6 @@ export class Queue extends DisTubeBase {
     this.previousSongs = [];
     this.stopped = false;
     this._manualUpdate = false;
-    this.playing = false;
     this.paused = false;
     this.repeatMode = RepeatMode.DISABLED;
     this.autoplay = false;
@@ -145,6 +140,15 @@ export class Queue extends DisTubeBase {
     return this.#filters;
   }
   /**
+   * Whether or not the queue is still active.
+   *
+   * It is `false` only when the queue has been stopped. A paused queue is still
+   * active.
+   */
+  get isActive(): boolean {
+    return !this.stopped;
+  }
+  /**
    * Formatted duration string.
    */
   get formattedDuration() {
@@ -180,14 +184,25 @@ export class Queue extends DisTubeBase {
   get volume() {
     return this.voice.volume;
   }
+  /**
+   * Set the stream volume.
+   * @param value - The volume percentage, from `0` to `100`
+   * @throws {@link DisTubeError} When the volume is not a number, or when it is
+   * negative
+   */
   set volume(value: number) {
     this.voice.volume = value;
   }
   /**
+   * Add a song or a list of songs to the queue.
    * @throws {DisTubeError}
    * @param song     - Song to add
    * @param position - Position to add, \<= 0 to add to the end of the queue
    * @returns The guild queue
+   * @example
+   * ```ts
+   * queue.addToQueue(song);
+   * ```
    */
   addToQueue(song: Song | Song[], position = 0): Queue {
     if (this.stopped) throw new DisTubeError("QUEUE_STOPPED");
@@ -208,22 +223,14 @@ export class Queue extends DisTubeBase {
     return this;
   }
   /**
-   * @returns `true` if the queue is active (not stopped)
-   * @deprecated Use `!queue.paused` to check if audio is playing. Will be removed in v6.0.
-   */
-  isPlaying(): boolean {
-    return this.playing;
-  }
-  /**
-   * @returns `true` if the queue is paused
-   * @deprecated Use `queue.paused` property instead. Will be removed in v6.0.
-   */
-  isPaused(): boolean {
-    return this.paused;
-  }
   /**
    * Pause the guild stream
    * @returns The guild queue
+   * @throws {@link DisTubeError} When the queue is already paused
+   * @example
+   * ```ts
+   * await queue.pause();
+   * ```
    */
   async pause(): Promise<Queue> {
     await this._taskQueue.queuing();
@@ -239,6 +246,11 @@ export class Queue extends DisTubeBase {
   /**
    * Resume the guild stream
    * @returns The guild queue
+   * @throws {@link DisTubeError} When the queue is not paused
+   * @example
+   * ```ts
+   * await queue.resume();
+   * ```
    */
   async resume(): Promise<Queue> {
     await this._taskQueue.queuing();
@@ -255,6 +267,8 @@ export class Queue extends DisTubeBase {
    * Set the guild stream's volume
    * @param percent - The percentage of volume you want to set
    * @returns The guild queue
+   * @throws {@link DisTubeError} When the volume is not a number, or when it is
+   * negative
    */
   setVolume(percent: number): Queue {
     this.volume = percent;
@@ -267,6 +281,12 @@ export class Queue extends DisTubeBase {
    * play a related song.</info>
    * @param options - Skip options
    * @returns The song will skip to
+   * @throws {@link DisTubeError} When there is no up next song, or when the
+   * position is out of the bounds of the queue
+   * @example
+   * ```ts
+   * await queue.skip();
+   * ```
    */
   async skip(options?: JumpOptions): Promise<Song> {
     return this.jump(1, options);
@@ -275,18 +295,22 @@ export class Queue extends DisTubeBase {
   /**
    * Play the previous song if exists
    * @returns The guild queue
+   * @throws {@link DisTubeError} When {@link DisTubeOptions.savePreviousSongs} is
+   * disabled, or when the queue does not have any previous song
    */
   async previous(): Promise<Song> {
     await this._taskQueue.queuing();
     try {
       if (!this.options.savePreviousSongs) throw new DisTubeError("DISABLED_OPTION", "savePreviousSongs");
-      if (this.previousSongs.length === 0 && this.repeatMode !== RepeatMode.QUEUE) {
+      const hasPrevious = this.previousSongs.length > 0;
+      if (!hasPrevious && this.repeatMode !== RepeatMode.QUEUE) {
         throw new DisTubeError("NO_PREVIOUS");
       }
-      const song =
-        this.repeatMode === RepeatMode.QUEUE && this.previousSongs.length === 0
-          ? (this.songs[this.songs.length - 1] as Song)
-          : (this.previousSongs.pop() as Song);
+      // In repeat-queue mode without any history, the last song of the queue is
+      // replayed. It has to be removed from its position, otherwise it would be
+      // queued twice.
+      const song = hasPrevious ? this.previousSongs.pop() : this.songs.pop();
+      if (!song) throw new DisTubeError("NO_PREVIOUS");
       this.songs.unshift(song);
       this.#stop();
       return song;
@@ -320,6 +344,9 @@ export class Queue extends DisTubeBase {
    * @param position - The song position to play
    * @param options  - Skip options
    * @returns The new Song will be played
+   * @throws {@link DisTubeError} When the position is invalid, when there is no
+   * up next song, or when {@link DisTubeOptions.savePreviousSongs} is disabled
+   * and the jump is backwards
    */
   async jump(position: number, options?: JumpOptions): Promise<Song> {
     await this._taskQueue.queuing();
@@ -359,6 +386,7 @@ export class Queue extends DisTubeBase {
    * Toggle mode `(Disabled -> Song -> Queue -> Disabled ->...)` if `mode` is `undefined`
    * @param mode - The repeat modes (toggle if `undefined`)
    * @returns The new repeat mode
+   * @throws {@link DisTubeError} When the mode is not a valid {@link RepeatMode}
    */
   setRepeatMode(mode?: RepeatMode): RepeatMode {
     if (mode !== undefined && !Object.values(RepeatMode).includes(mode)) {
@@ -373,6 +401,12 @@ export class Queue extends DisTubeBase {
    * Set the playing time to another position
    * @param time - Time in seconds
    * @returns The guild queue
+   * @throws {@link DisTubeError} When the time is not a number, or when it is
+   * negative
+   * @example
+   * ```ts
+   * await queue.seek(60);
+   * ```
    */
   async seek(time: number): Promise<Queue> {
     await this._taskQueue.queuing();
@@ -394,6 +428,10 @@ export class Queue extends DisTubeBase {
   /**
    * Internal implementation of addRelatedSong without task queue protection.
    * Used by methods that already hold the task queue lock.
+   * @param song - The song to get related songs from. Defaults to the current playing song.
+   * @returns A promise that resolves to the added song
+   * @throws {@link DisTubeError} When the queue does not have any playing song,
+   * or when no related song could be found
    * @internal
    */
   async _addRelatedSong(song?: Song): Promise<Song> {
@@ -418,6 +456,8 @@ export class Queue extends DisTubeBase {
    * Add a related song of the playing song to the queue
    * @param song - The song to get related songs from. Defaults to the current playing song.
    * @returns The added song
+   * @throws {@link DisTubeError} When the queue does not have any playing song,
+   * or when no related song could be found
    */
   async addRelatedSong(song?: Song): Promise<Song> {
     await this._taskQueue.queuing();
@@ -429,6 +469,7 @@ export class Queue extends DisTubeBase {
   }
   /**
    * Stop the guild stream and delete the queue
+   * @returns A promise that resolves when the queue is stopped
    */
   async stop() {
     await this._taskQueue.queuing();
@@ -441,9 +482,9 @@ export class Queue extends DisTubeBase {
   }
   /**
    * Remove the queue from the manager
+   * @returns Nothing
    */
   remove() {
-    this.playing = false;
     this.paused = true;
     this.stopped = true;
     this.songs = [];
@@ -463,10 +504,33 @@ export class Queue extends DisTubeBase {
   /**
    * Play the first song in the queue
    * @param emitPlaySong - Whether or not emit {@link Events.PLAY_SONG} event
+   * @returns A promise that resolves when the song is playing
+   * @throws {@link DisTubeError} When the queue has been stopped
    */
   play(emitPlaySong = true) {
     if (this.stopped) throw new DisTubeError("QUEUE_STOPPED");
-    this.playing = true;
     return this.queues.playSong(this, emitPlaySong);
+  }
+  /**
+   * Restart the current stream with the current FFmpeg arguments, keeping the
+   * playback position.
+   *
+   * The FFmpeg audio filters are applied when the stream is created, so the stream
+   * has to be recreated whenever the filters change.
+   *
+   * Unlike a regular playback error, a failure while restarting the stream does
+   * **not** remove the current song from the queue.
+   * @returns A promise that resolves when the stream is restarted
+   * @internal
+   */
+  async _restartStream(): Promise<void> {
+    await this._taskQueue.queuing(true);
+    try {
+      if (this.stopped || !this.songs.length) return;
+      this._beginTime = this.currentTime;
+      await this.queues.playSong(this, false, { keepSongOnError: true });
+    } finally {
+      this._taskQueue.resolve();
+    }
   }
 }
