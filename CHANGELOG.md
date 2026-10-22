@@ -69,4 +69,4 @@ The plugin API got a new shape, and the API that was deprecated in v5.2 is gone.
   `isActive` getter.
 - The `InfoExtratorPlugin` and `PlayableExtratorPlugin` aliases, which had a typo in their name.
 
-[6.0.0]: https://github.com/carlylekatto/DisTube/releases/tag/v6.0.0
+[6.0.0]: https://github.com/carlylekatto/DisTube/releases/tag/6.0.0
