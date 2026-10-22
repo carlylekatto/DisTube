@@ -24,9 +24,8 @@ publish that comes from a supported CI provider.
 
 ## The trusted publisher
 
-The workflow authenticates with a token that GitHub signs for the run, and npm accepts it because
-the package trusts that workflow. The command needs the npm client 11.15.0 or later, and the two
-factor authentication of the account:
+The command needs the npm client 11.15.0 or later, and the two factor authentication of the
+account:
 
 ```bash
 npm install -g npm@^11.15.0
@@ -45,18 +44,19 @@ shows up when the publish runs.
 A trusted publisher has to complete its first publish within two days, or it expires. If that
 happens, remove it with `npm trust revoke` and add it again.
 
-### 3. The releases
+## The releases
 
-From now on, the workflow does the publishing. A release is a tag and a release on GitHub:
+From now on, the workflow does the publishing. A tag is the trigger: it publishes the version, and
+it creates the release of it with the notes of the changelog.
 
 ```bash
-git tag 6.0.1
+npm version 6.0.1
 git push fork main --tags
-gh release create 6.0.1 --title "6.0.1" --generate-notes
 ```
 
-The tag has no `v` in front, like the other tags of the repository. The version of the package and
-the tag have to match.
+The command bumps the version of `package.json`, creates the tag and commits both. The tag has no `v`
+in front, like the other tags of the repository. The version of the package and the tag have to
+match, and the workflow stops when they do not.
 
 The workflow stages the version instead of publishing it. The version waits on the registry, and
 it becomes public when it is approved:
@@ -114,10 +114,14 @@ The alias installs the package under the name `distube`, so the code of the bot 
 
 ## After the first publish
 
-The package settings of npmjs.com can then close the door on the tokens: **Settings → Publishing
+The package settings of npmjs.com can close the door on the tokens: **Settings → Publishing
 access → Require two-factor authentication and disallow tokens**. The trusted publisher keeps
 working, since it does not use a token.
 
-There is also a staged publishing, where `npm stage publish` waits for an approval before the
-package becomes public. The workflow of the fork publishes directly, so it needs the `npm publish`
-permission in the trusted publisher.
+The approval of a staged version needs the two factor authentication of the account. From the
+command line it uses the session of `npm login`, which the setting above does not allow any more,
+so approve it on the website of npm, where the session comes from the browser.
+
+There is also the choice of publishing the version right away, without the wait of an approval. The
+workflow does it when it runs with the `publish` input, and the trusted publisher needs the
+`npm publish` permission for it.
