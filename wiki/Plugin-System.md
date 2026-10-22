@@ -5,11 +5,11 @@ means you only install and load the sources you actually need.
 
 ## Plugin types
 
-| Type | Base class | Can extract the info | Can search | Can play the track |
-| --- | --- | --- | --- | --- |
-| Extractor | `ExtractorPlugin` | ✅ | ✅ | ✅ |
-| Info extractor | `InfoExtractorPlugin` | ✅ | ❌ | ❌ (delegates to an extractor) |
-| Playable extractor | `PlayableExtractorPlugin` | ✅ | ❌ | ✅ |
+| Type               | Base class                | Can extract the info | Can search | Can play the track             |
+| ------------------ | ------------------------- | -------------------- | ---------- | ------------------------------ |
+| Extractor          | `ExtractorPlugin`         | ✅                   | ✅         | ✅                             |
+| Info extractor     | `InfoExtractorPlugin`     | ✅                   | ❌         | ❌ (delegates to an extractor) |
+| Playable extractor | `PlayableExtractorPlugin` | ✅                   | ❌         | ✅                             |
 
 ## Using the official plugins
 

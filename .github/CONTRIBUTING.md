@@ -11,7 +11,6 @@ Thank you for your interest in contributing to DisTube! This document provides g
 ## 🛠️ Pull Requests
 
 We welcome contributions via pull requests! Please follow these guidelines:
-
 1.  **Fork the repository** and create a new branch from `main` for your changes:
 
     ```bash
@@ -55,7 +54,6 @@ We welcome contributions via pull requests! Please follow these guidelines:
 ## ⚙️ Development Setup
 
 DisTube is built with TypeScript and uses the following tools:
-
 - [Bun](https://bun.sh/): Package manager and runtime
 - [Biome](https://biomejs.dev/): Linter and formatter
 - [Vitest](https://vitest.dev/): Test runner

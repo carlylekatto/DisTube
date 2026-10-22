@@ -15,18 +15,17 @@
 The v5 plugin API was designed for a world where a music source was "give me a
 URL and FFmpeg will fetch it". That world is gone:
 
-| Source | What it needs today |
-| --- | --- |
-| YouTube | SABR protocol + per-request PO tokens + BotGuard attestation |
+| Source  | What it needs today                                            |
+| ------- | -------------------------------------------------------------- |
+| YouTube | SABR protocol + per-request PO tokens + BotGuard attestation   |
 | Spotify | Widevine license exchange (EME) + encrypted fMP4 + PCM capture |
-| Tidal | Turnstile challenge + AES-128-CTR decryption |
+| Tidal   | Turnstile challenge + AES-128-CTR decryption                   |
 
 None of them can hand out a static URL. They all have to run a **local HTTP
 server** and hand FFmpeg a `http://127.0.0.1:<port>/...` URL, which the v5 API
 does not model and does not let them clean up.
 
 The v5 API also has no way to express the things the plugins actually need:
-
 - **multi-result search** — `ExtractorPlugin#searchSong()` returns exactly one
   `Song | null`
 - **a source that is not playable by itself** — `InfoExtractorPlugin` exists for
@@ -208,7 +207,6 @@ URL has to run its own HTTP server. The `coz` bot runs three of them: the
 YouTube SABR proxy, the Spotify PCM proxy and the Monochrome FLAC decryptor.
 
 That has three problems:
-
 - every server has to be closed by hand, and a hot reload that replaces a
   plugin instance without disposing it leaks the socket
 - a fixed port makes the next instance fail with `EADDRINUSE`, which is an
@@ -308,14 +306,14 @@ and `DisTube#destroy()` closes it.
 
 **What it solves**
 
-| Problem | Before | After |
-| --- | --- | --- |
-| Number of servers | 3 | 1 |
-| Socket leak on hot reload | yes | no, `DisTube#destroy()` closes it |
-| `EADDRINUSE` on reload | yes (fixed port) | no (ephemeral port) |
-| FFmpeg `reconnect` | restarts the track | resumes, once `Range` is supported |
-| Secret in the URL (`?key=`) | yes | can be moved to a header |
-| URL scheme | one per plugin | one for everybody |
+| Problem                     | Before             | After                              |
+| --------------------------- | ------------------ | ---------------------------------- |
+| Number of servers           | 3                  | 1                                  |
+| Socket leak on hot reload   | yes                | no, `DisTube#destroy()` closes it  |
+| `EADDRINUSE` on reload      | yes (fixed port)   | no (ephemeral port)                |
+| FFmpeg `reconnect`          | restarts the track | resumes, once `Range` is supported |
+| Secret in the URL (`?key=`) | yes                | can be moved to a header           |
+| URL scheme                  | one per plugin     | one for everybody                  |
 
 **It is additive.** `getStreamURL()` keeps working exactly as before, so a
 plugin that keeps its own server is not broken. The migration is three lines:
@@ -338,7 +336,6 @@ getStreamURL(song) { return this.streams.url("youtube", `v/${song.id}`); }
 ```
 
 **Security**
-
 - the server binds `127.0.0.1` only
 - an optional random path prefix makes the URL unguessable for the other local
   processes
@@ -540,22 +537,22 @@ throw musicError("UNSUPPORTED_URL", "Không thể nhận diện URL Spotify");
 
 ## 6. Compatibility
 
-| Change | Breaking | Mitigation |
-| --- | --- | --- |
-| `Plugin#destroy()` added | No | New optional method with a default no-op |
-| `Plugin#init()` may be async | No | `DisTube.create()` awaits it; the constructor keeps the old behaviour |
-| `Plugin#source` / `#aliases` added | No | New optional fields |
-| `Plugin#streams` added | No | New optional getter |
-| `ExtractorPlugin#search()` added | No | Default implementation delegates to `searchSong()` |
-| `SearchOptions` added | No | New type |
-| `DisTube#search()` added | No | New method |
-| `StreamServer` added | No | New class; `getStreamURL()` keeps working without it |
-| `PluginError` / `PluginErrorCode` added | No | New code; the existing codes keep working |
-| `SongInfo#metadata` | No | Already merged in `feat/v6-foundation` |
-| `DisTubeError.withMessage()` | No | Already merged in `feat/v6-foundation` |
-| `Song#stream` accepts a `Readable` | No | The URL path is unchanged |
-| The merge of `InfoExtractorPlugin` into `ExtractorPlugin` | **Yes** | The class stays as a deprecated alias in v6 |
-| Removal of the v5 deprecations | **Yes** | Already announced for v6.0 |
+| Change                                                    | Breaking | Mitigation                                                            |
+| --------------------------------------------------------- | -------- | --------------------------------------------------------------------- |
+| `Plugin#destroy()` added                                  | No       | New optional method with a default no-op                              |
+| `Plugin#init()` may be async                              | No       | `DisTube.create()` awaits it; the constructor keeps the old behaviour |
+| `Plugin#source` / `#aliases` added                        | No       | New optional fields                                                   |
+| `Plugin#streams` added                                    | No       | New optional getter                                                   |
+| `ExtractorPlugin#search()` added                          | No       | Default implementation delegates to `searchSong()`                    |
+| `SearchOptions` added                                     | No       | New type                                                              |
+| `DisTube#search()` added                                  | No       | New method                                                            |
+| `StreamServer` added                                      | No       | New class; `getStreamURL()` keeps working without it                  |
+| `PluginError` / `PluginErrorCode` added                   | No       | New code; the existing codes keep working                             |
+| `SongInfo#metadata`                                       | No       | Already merged in `feat/v6-foundation`                                |
+| `DisTubeError.withMessage()`                              | No       | Already merged in `feat/v6-foundation`                                |
+| `Song#stream` accepts a `Readable`                        | No       | The URL path is unchanged                                             |
+| The merge of `InfoExtractorPlugin` into `ExtractorPlugin` | **Yes**  | The class stays as a deprecated alias in v6                           |
+| Removal of the v5 deprecations                            | **Yes**  | Already announced for v6.0                                            |
 
 **Every item is additive.** The only breaking change in v6 stays the one that
 was already announced: the removal of the deprecated shortcut methods.
@@ -565,7 +562,6 @@ was already announced: the removal of the deprecated shortcut methods.
 ## 7. Decisions
 
 The open questions have been answered:
-
 1. **`search()` returns a `SearchResult`, at every level.** The search APIs of
    every source already return everything a `Song` needs, so it costs nothing,
    and it removes the second round trip: today a bot has to search, throw the
@@ -591,18 +587,18 @@ The open questions have been answered:
 
 ## 8. Implementation order
 
-| Step | Item | Depends on | Status |
-| --- | --- | --- | --- |
-| 1 | `Plugin#destroy()`, `DisTube#destroy()` disposing the plugins | — | ✅ done |
-| 2 | `SongInfo#metadata`, `DisTubeError.withMessage()` | — | ✅ done |
-| 3 | `Plugin#source` / `#aliases`, `distube.getPlugin()` | — | ✅ done |
-| 4 | `SearchOptions`, `ExtractorPlugin#search()`, `SearchResult`, `distube.search()` | 3 | ✅ done |
-| 5 | The `source` option of `SearchOptions` and of `PlayOptions` | 3, 4 | ✅ done |
-| 6 | `PluginError` / `PluginErrorCode` | — | ✅ done |
-| 7 | `StreamServer`, `Plugin#streams`, `Disposable` | — | ✅ done |
-| 8 | The removal of the v5 deprecations | — | ✅ done |
-| 9 | The merge of `InfoExtractorPlugin` into `ExtractorPlugin`, and the fallback chain | 4 | ✅ done |
-| 10 | HTTP `Range` in every handler | 7, and every handler being able to resume | ⏳ later |
+| Step | Item                                                                              | Depends on                                | Status   |
+| ---- | --------------------------------------------------------------------------------- | ----------------------------------------- | -------- |
+| 1    | `Plugin#destroy()`, `DisTube#destroy()` disposing the plugins                     | —                                         | ✅ done  |
+| 2    | `SongInfo#metadata`, `DisTubeError.withMessage()`                                 | —                                         | ✅ done  |
+| 3    | `Plugin#source` / `#aliases`, `distube.getPlugin()`                               | —                                         | ✅ done  |
+| 4    | `SearchOptions`, `ExtractorPlugin#search()`, `SearchResult`, `distube.search()`   | 3                                         | ✅ done  |
+| 5    | The `source` option of `SearchOptions` and of `PlayOptions`                       | 3, 4                                      | ✅ done  |
+| 6    | `PluginError` / `PluginErrorCode`                                                 | —                                         | ✅ done  |
+| 7    | `StreamServer`, `Plugin#streams`, `Disposable`                                    | —                                         | ✅ done  |
+| 8    | The removal of the v5 deprecations                                                | —                                         | ✅ done  |
+| 9    | The merge of `InfoExtractorPlugin` into `ExtractorPlugin`, and the fallback chain | 4                                         | ✅ done  |
+| 10   | HTTP `Range` in every handler                                                     | 7, and every handler being able to resume | ⏳ later |
 
 > The `coz` bot can already use step 3, 4 and 5 through the new
 > `musicError()` helper and the `source` field of the plugins, without

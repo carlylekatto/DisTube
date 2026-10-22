@@ -395,7 +395,7 @@ describe("DisTubeVoice", () => {
 
       expect(errorHandler).toHaveBeenCalledTimes(1);
       expect(errorHandler.mock.calls[0]?.[0]).toBeInstanceOf(DisTubeError);
-      expect((errorHandler.mock.calls[0]?.[0] as DisTubeError).errorCode).toBe("TRACK_STUCK");
+      expect((errorHandler.mock.calls[0]?.[0] as DisTubeError | undefined)?.errorCode).toBe("TRACK_STUCK");
     });
 
     it("does not emit an error when the track starts playing in time", () => {

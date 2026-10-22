@@ -14,7 +14,6 @@ price!
 ### [Order Now!](https://skick.xyz/vps)
 
 All plans, even **4$** plan, use the below specification:
-
 - CPU: **AMD EPYC Milan**
 - SSD: **Samsung Enterprise NVMe Storage**
 - Public Network Port: **10Gbps | 40Gbps** (depends on location)

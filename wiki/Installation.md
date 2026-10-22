@@ -34,7 +34,6 @@ pnpm add distube @discordjs/voice @discordjs/opus
 ## 2. Install FFmpeg
 
 DisTube uses FFmpeg for audio processing. You must have it installed on your system and added to your PATH.
-
 - **Windows**: [Download Guide](http://blog.gregzaal.com/how-to-install-ffmpeg-on-windows/)
 - **Linux (Ubuntu/Debian)**: `sudo apt-get install ffmpeg`
 - **MacOS**: `brew install ffmpeg`
@@ -51,11 +50,10 @@ Discord.js requires an encryption library for voice support. DisTube will work w
 
 Check if your system supports `aes-256-gcm` natively:
 ```javascript
-require('node:crypto').getCiphers().includes('aes-256-gcm')
+require("node:crypto").getCiphers().includes("aes-256-gcm");
 ```
 
 If it returns `false`, you **must** install one of the following:
-
 - [@noble/ciphers](https://www.npmjs.com/package/@noble/ciphers) (Recommended)
 - [sodium-native](https://www.npmjs.com/package/sodium-native)
 

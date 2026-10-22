@@ -7,7 +7,6 @@ DisTube doesn't support any music sources anymore. You have to use plugins to su
 ### DisTubeOptions
 
 Removed `streamType`, `youtubeCookie`, `ytdlOptions`, `searchSongs`, `directLink`, `leaveOnStop`, `leaveOnEmpty` and `leaveOnFinish` options.
-
 - `leaveOnEmpty`: Check [[Handling Discord.js Events]]
 - `leaveOnStop`: Add `queue.voice.leave()` after `queue.stop()` line
 - `leaveOnFinish`: Add `queue.voice.leave()` in the `finish` event
@@ -248,7 +247,6 @@ distube.on("playSong", (queue, song) => {
 ### Addition
 
 New events on v3:
-
 - [deleteQueue](https://distube.js.org/classes/DisTube.html#deletequeue)
 - [disconnect](https://distube.js.org/classes/DisTube.html#disconnect)
 - [finishSong](https://distube.js.org/classes/DisTube.html#finishsong)
@@ -318,7 +316,6 @@ distube.search("A query", {
 ### Addition
 
 New methods on v3:
-
 - playVoiceChannel (replaced with `play` in v4)
 - [addRelatedSong](https://distube.js.org/classes/Queue.html#addrelatedsong)
 - [previous](https://distube.js.org/classes/Queue.html#previous)

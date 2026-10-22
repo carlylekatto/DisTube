@@ -95,7 +95,6 @@ distube.on(Events.INIT_QUEUE, queue => {
 - Use `cookies` option (Guide: [[YouTube-Cookies]]).
   > You have to sign in before getting the cookie.
   > You may have to wait for YouTube to unblock your IP after getting this error.
-
 ### 2.1 Sign in to confirm you're not a bot<br/>2.2 Get the best YouTube experience
 
 #### Reason
@@ -106,7 +105,6 @@ distube.on(Events.INIT_QUEUE, queue => {
 
 - Use `cookies` option (Guide: [[YouTube-Cookies]]).
   > You have to sign in before getting the cookie.
-
 ### 3. Sign in to confirm your age
 
 #### Reason
@@ -118,7 +116,6 @@ distube.on(Events.INIT_QUEUE, queue => {
 - Use `cookies` option (Guide: [[YouTube-Cookies]]).
   > You have to sign in before getting the cookie.
   > Your account information must be at least 18 years old.
-
 ### 4. Error checking for updates: Status code 403
 
 #### Reason
