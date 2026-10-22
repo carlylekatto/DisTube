@@ -50,13 +50,15 @@ From now on, the workflow does the publishing. A tag is the trigger: it publishe
 it creates the release of it with the notes of the changelog.
 
 ```bash
-npm version 6.0.1
+npm version 6.0.1 -m "chore: release 6.0.1"
 git push fork main --tags
 ```
 
-The command bumps the version of `package.json`, creates the tag and commits both. The tag has no `v`
-in front, like the other tags of the repository. The version of the package and the tag have to
-match, and the workflow stops when they do not.
+The command bumps the version of `package.json`, creates the tag and commits both. The `-m` flag is
+the message of the commit, and the tag has no `v` in front, like the other tags of the repository:
+the `.npmrc` of the repository empties the prefix that `npm version` uses by default.
+
+The version of the package and the tag have to match, and the workflow stops when they do not.
 
 The workflow stages the version instead of publishing it. The version waits on the registry, and
 it becomes public when it is approved:
