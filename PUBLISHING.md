@@ -53,16 +53,31 @@ happens, remove it with `npm trust revoke` and add it again.
 From now on, the workflow does the publishing. A release is a tag and a release on GitHub:
 
 ```bash
-git tag 6.0.0
+git tag 6.0.1
 git push fork main --tags
-gh release create 6.0.0 --title "6.0.0" --generate-notes
+gh release create 6.0.1 --title "6.0.1" --generate-notes
 ```
 
 The tag has no `v` in front, like the other tags of the repository. The version of the package and
 the tag have to match.
 
-The workflow lints the code, runs the tests, builds the package, and publishes it with a provenance
-attestation, which npm generates on its own when the publish comes from a trusted publisher.
+The workflow stages the version instead of publishing it. The version waits on the registry, and
+it becomes public when it is approved:
+
+```bash
+npm stage list @kattowo/distube
+npm stage approve <id>
+```
+
+The approval asks for the two factor authentication of the account. To skip the wait, the workflow
+has an input for it, and the version goes out right away:
+
+```bash
+gh workflow run publish.yml -f publish=true
+```
+
+The workflow lints the code, runs the tests, builds the package, and stages it. The provenance
+attestation is written by npm on its own, since the publish comes from a trusted publisher.
 
 ## The version
 

@@ -5,6 +5,11 @@ All the notable changes of DisTube are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.0.1]
+
+The first version that the workflow of the fork publishes. The library did not change: it is the
+code of 6.0.0, built by the pipeline and signed with a provenance attestation.
+
 ## [6.0.0]
 
 The plugin API got a new shape, and the API that was deprecated in v5.2 is gone.
@@ -69,4 +74,5 @@ The plugin API got a new shape, and the API that was deprecated in v5.2 is gone.
   `isActive` getter.
 - The `InfoExtratorPlugin` and `PlayableExtratorPlugin` aliases, which had a typo in their name.
 
+[6.0.1]: https://github.com/carlylekatto/DisTube/releases/tag/6.0.1
 [6.0.0]: https://github.com/carlylekatto/DisTube/releases/tag/6.0.0
