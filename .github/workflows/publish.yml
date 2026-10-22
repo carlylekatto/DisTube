@@ -2,13 +2,13 @@ name: Publish distube
 on:
   release:
     types: [published]
+permissions:
+  contents: read
+  id-token: write
 jobs:
   publish:
     name: Build & Publish
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -24,14 +24,15 @@ jobs:
           node-version: 24
           registry-url: "https://registry.npmjs.org"
 
+      # The trusted publishing needs the npm client 11.5.1 or later. The one
+      # that comes with Node is old enough on some patches.
+      - name: Update the npm client
+        run: npm install --global npm@latest
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # The token of npm is a secret of the repository: NPM_TOKEN. It is an
-      # automation token of the account kattowo, and it has to publish the
-      # scope @kattowo.
+      # The publish runs the prepublishOnly script, which lints the code and
+      # runs the tests, and the prepack script, which builds the package.
       - name: Publish
-        run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
+        run: npm publish --access public
