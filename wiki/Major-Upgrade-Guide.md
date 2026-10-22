@@ -35,25 +35,25 @@ Removed `streamType`, `youtubeCookie`, `ytdlOptions`, `searchSongs`, `directLink
 - `leaveOnEmpty`: Check [[Handling Discord.js Events]]
 - `leaveOnStop`: Add `queue.voice.leave()` after `queue.stop()` line
 - `leaveOnFinish`: Add `queue.voice.leave()` in the `finish` event
-- `directLink`: Use `@distube/direct-link` plugin
-- `youtubeCookie` and `ytdlOptions`: Check the `@distube/youtube` plugin options
+- `directLink`: Use a plugin that reads the link
+- `youtubeCookie` and `ytdlOptions`: Give them to the plugin that handles the source
 
 ### DisTube#search
 
-DisTube#search was removed since it doesn't support YouTube anymore, you can use `YouTubePlugin#search` or `SoundCloudPlugin#search`,... instead.\
+DisTube#search was removed since the sources moved to the plugins. Use `Plugin#search` instead.\
 Please check the plugin docs for more information.
 
 ```ts
-import { YouTubePlugin } from "@distube/youtube"
+import { MyPlugin } from "./my-plugin.js"
 import { DisTube } from "@kattowo/distube"
 
-const ytPlugin = new YouTubePlugin(...);
+const plugin = new MyPlugin(...);
 const distube = new DisTube({
-    plugins: [ytPlugin],
+    plugins: [plugin],
     ...
 })
 
-ytPlugin.search(query, { type: "video", limit: 5, safeSearch: true }).then(console.log)
+plugin.search(query, { type: "track", limit: 5, safeSearch: true }).then(console.log)
 ```
 
 ### Error event
@@ -87,7 +87,7 @@ ytPlugin.search(query, { type: "video", limit: 5, safeSearch: true }).then(conso
 
 On v5, `Song` info is not represented the `Song` will be streamed to the voice channel if `Song#playFromSource` is `false`
 
-Example: `s` is a Spotify `Song`, `s.source` is `spotify`, `s.playFromSource` is `false`. When the song plays, `s.stream.song` will be a stream-able `Song` searched with an `ExtractorPlugin`. And DisTube will play the `s.stream.song` instead of `s`
+Example: `s` is a `Song` of a source that does not play it, `s.source` is the identifier of that source, `s.playFromSource` is `false`. When the song plays, `s.stream.song` will be a stream-able `Song` searched with an `ExtractorPlugin`. And DisTube will play the `s.stream.song` instead of `s`
 
 Note: `Song#stream.url` or `Song#stream.song` is only available when the song is playing.
 
@@ -102,12 +102,11 @@ Also, update plugins if you're using them.
 
 ### DisTubeOptions
 
-The built-in `youtube-dl` plugin is removed for more convenient updating in the future. Now, you can use the new [`@distube/yt-dlp` plugin](https://www.npmjs.com/package/@distube/yt-dlp).
+The built-in `youtube-dl` plugin is removed, so that it can be updated on its own. A plugin that does the same is in the registry.
 
 ```diff
 - const distube = new DisTube({ youtubeDL: true, updateYouTubeDL: false })
-+ const { YtDlpPlugin } = require("@distube/yt-dlp")
-+ const distube = new DisTube({ plugins: [new YtDlpPlugin({ update: false })] })
++ const distube = new DisTube({ plugins: [new MyPlugin()] })
 ```
 
 ### DisTube#play
@@ -156,7 +155,7 @@ This method has been removed and replaced with `DisTube#play`.
 `DisTube#playCustomPlaylist` has been removed. You can use `DisTube#createCustomPlaylist` and `DisTube#play` instead.
 
 ```diff
-const songs = ["https://www.youtube.com/watch?v=xxx", "https://www.youtube.com/watch?v=yyy"];
+const songs = ["https://audio.example.com/xxx", "https://audio.example.com/yyy"];
 - distube.playCustomPlaylist(message, songs, { name: "My playlist name" });
 + const playlist = await distube.createCustomPlaylist(songs, {
 +     member: message.member,

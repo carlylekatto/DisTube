@@ -218,7 +218,7 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
    * @returns The DisTube instance
    * @example
    * ```ts
-   * const distube = await DisTube.create(client, { plugins: [new YoutubePlugin()] });
+   * const distube = await DisTube.create(client, { plugins: [new MyPlugin()] });
    * ```
    */
   static async create(client: Client, opts: DisTubeOptions = {}): Promise<DisTube> {
@@ -434,12 +434,12 @@ export class DisTube extends TypedEmitter<TypedDisTubeEvents> {
    *
    * It matches the {@link Plugin.source} of the plugin, or one of its
    * {@link Plugin.aliases}. The identifier of the class is used when the
-   * plugin does not define a source (`YoutubePlugin` -> `youtube`).
+   * plugin does not define a source (`MyPlugin` -> `myplugin`).
    * @param source - The identifier of the source
    * @returns The plugin, or `undefined` when there is none
    * @example
    * ```ts
-   * const plugin = distube.getPlugin("youtube");
+   * const plugin = distube.getPlugin("myplugin");
    * ```
    */
   getPlugin(source: string): DisTubePlugin | undefined {

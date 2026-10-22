@@ -27,7 +27,7 @@ export abstract class PlayableExtractorPlugin extends ExtractorPlugin {
   abstract override resolve<T>(url: string, options: ResolveOptions<T>): Awaitable<Song<T> | Playlist<T>>;
   /**
    * Get the stream url from {@link Song#url}. Returns {@link Song#url} by default.
-   * Not needed if the plugin plays song from YouTube.
+   * Not needed if the plugin plays the song itself.
    * @param song - Input song
    * @returns The url of the audio stream
    */

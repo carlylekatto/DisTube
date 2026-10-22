@@ -88,13 +88,16 @@ DisTube ships no music source. Every source is a plugin, so a bot loads the ones
 
 ```javascript
 const { DisTube } = require("@kattowo/distube");
-const { YoutubePlugin } = require("@distube/youtube");
-const { SpotifyPlugin } = require("@distube/spotify");
+const { MyPlugin } = require("./my-plugin.js");
 
 const distube = new DisTube(client, {
-  plugins: [new YoutubePlugin(), new SpotifyPlugin()],
+  plugins: [new MyPlugin()],
 });
 ```
+
+This fork does not maintain the plugins of the upstream repository. They may not work with it, and
+they are not covered by the tests of this fork. Write your own extractor, or use a plugin that you
+trust and that you can keep up to date.
 
 A plugin that cannot hand out a static URL to FFmpeg registers a handler on the shared stream server
 of DisTube, so the bot runs one HTTP server instead of one per plugin.
@@ -103,7 +106,7 @@ of DisTube, so the bot runs one HTTP server instead of one per plugin.
 play options routes a query to a single source:
 
 ```javascript
-const result = await distube.search("never gonna give you up", { source: "youtube" });
+const result = await distube.search("never gonna give you up", { source: "my-source" });
 ```
 
 ## Documentation

@@ -82,53 +82,37 @@ distube.on(Events.INIT_QUEUE, queue => {
 });
 ```
 
-## YouTubePlugin
+## The plugins
 
-### 1. Error: Status code: 429
+### The source asks for a signed-in session
 
-#### Reason
-
-- It is caused by requesting YouTube videos too fast.
-
-#### Solution
-
-- Use `cookies` option (Guide: [[YouTube-Cookies]]).
-  > You have to sign in before getting the cookie.
-  > You may have to wait for YouTube to unblock your IP after getting this error.
-### 2.1 Sign in to confirm you're not a bot<br/>2.2 Get the best YouTube experience
+Some services answer a request that comes from a bot with a challenge, a rate limit, or a refusal.
+The symptoms are a request that fails with `429`, a _"Sign in to confirm you're not a bot"_ message,
+or a _"Sign in to confirm your age"_ one.
 
 #### Reason
 
-- You are literally a Discord bot
+- The service does not answer a request that comes from a bot, or it answers it very rarely.
+- Some content needs an account, and the account has to be old enough for it.
 
 #### Solution
 
-- Use `cookies` option (Guide: [[YouTube-Cookies]]).
-  > You have to sign in before getting the cookie.
-### 3. Sign in to confirm your age
+- Give the plugin a session of a signed-in account. The plugin documents the option that takes it.
+  > You have to sign in before getting the session.
+  > You may have to wait for the service to unblock your IP after getting this error.
+  > Your account information must be at least 18 years old for the age-restricted content.
+### The plugin cannot check for its updates
 
 #### Reason
 
-- Playing YouTube age-restricted videos
+- The plugin asks the registry of the packages too often, maybe because the bot restarts a lot.
 
 #### Solution
 
-- Use `cookies` option (Guide: [[YouTube-Cookies]]).
-  > You have to sign in before getting the cookie.
-  > Your account information must be at least 18 years old.
-### 4. Error checking for updates: Status code 403
-
-#### Reason
-
-- You are requested to github too many times (maybe due to restarting your bot). YouTubePlugin deps check their versions with github api so it can be rate-limited
-
-#### Solution
-
-- Disable check for updates temporarily with their env variables
+- Turn the check off with the environment variable of the plugin.
 
 ```ts
-process.env.YTSR_NO_UPDATE = "1";
-process.env.YTDL_NO_UPDATE = "1";
+process.env.MY_PLUGIN_NO_UPDATE = "1";
 ```
 
 ## Common Issues

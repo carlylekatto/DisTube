@@ -16,7 +16,7 @@ export abstract class Plugin {
    * The identifier of the source of the plugin.
    *
    * It defaults to the name of the class, lowercased, without the `Plugin`
-   * suffix (`YoutubePlugin` -> `youtube`).
+   * suffix (`MyPlugin` -> `myplugin`).
    *
    * It is used to route a search to a plugin, and to find a plugin with
    * {@link DisTube#getPlugin}.

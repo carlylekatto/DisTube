@@ -356,7 +356,7 @@ export interface SongInfo<T = unknown> {
    */
   plugin: DisTubePlugin | null;
   /**
-   * The identifier of the source of the song, e.g. `youtube`.
+   * The identifier of the source of the song, e.g. `my-source`.
    */
   source: string;
   /**
@@ -441,7 +441,7 @@ export interface SongInfo<T = unknown> {
  */
 export interface PlaylistInfo {
   /**
-   * The identifier of the source of the playlist, e.g. `youtube`.
+   * The identifier of the source of the playlist, e.g. `my-source`.
    */
   source: string;
   /**

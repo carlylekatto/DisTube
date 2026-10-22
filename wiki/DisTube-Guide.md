@@ -257,12 +257,10 @@ DisTube doesn't include music sources by default. Use official plugins:
 
 ```javascript
 import { DisTube } from "@kattowo/distube";
-import { YouTubePlugin } from "@distube/youtube";
-import { SpotifyPlugin } from "@distube/spotify";
-import { SoundCloudPlugin } from "@distube/soundcloud";
+import { MyPlugin } from "./my-plugin.js";
 
 const distube = new DisTube(client, {
-  plugins: [new YouTubePlugin(), new SpotifyPlugin(), new SoundCloudPlugin()],
+  plugins: [new MyPlugin()],
 });
 ```
 

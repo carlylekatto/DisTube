@@ -15,11 +15,10 @@ means you only install and load the sources you actually need.
 
 ```javascript
 const { DisTube } = require("@kattowo/distube");
-const { YouTubePlugin } = require("@distube/youtube");
-const { SpotifyPlugin } = require("@distube/spotify");
+const { MyPlugin } = require("./my-plugin.js");
 
 const distube = new DisTube(client, {
-  plugins: [new YouTubePlugin(), new SpotifyPlugin()],
+  plugins: [new MyPlugin()],
 });
 ```
 
@@ -70,7 +69,7 @@ class MyPlugin extends ExtractorPlugin {
 
 ### InfoExtractorPlugin
 
-Use it when your source only provides the metadata (for example Spotify). DisTube then looks for a
+Use it when your source only provides the metadata. DisTube then looks for a
 playable version of the track with an extractor plugin:
 
 ```javascript
