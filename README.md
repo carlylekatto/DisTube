@@ -25,6 +25,7 @@ is one so far, [#353](https://github.com/skick1234/DisTube/pull/353), which turn
 encryption that Discord made mandatory in March 2026.
 - [The documentation of the fork](https://carlylekatto.github.io/distube-website/)
 - [The changelog](./CHANGELOG.md)
+- [Publishing the fork](./PUBLISHING.md)
 
 ## Requirements
 
