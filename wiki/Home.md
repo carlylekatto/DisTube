@@ -6,7 +6,7 @@ DisTube is a powerful and easy-to-use music library for Discord.js. This wiki pr
 
 - [[Installation]] - System requirements and installation guide.
 - [[DisTube Guide]] - The perfect starting point for beginners.
-- [API Documentation](https://distube.js.org/) - Detailed technical reference for all classes and methods.
+- [API Documentation](https://carlylekatto.github.io/distube-website/api/) - Detailed technical reference for all classes and methods.
 - [[Plugin System]] - How the music sources work and how to write your own plugin.
 - [[Audio Effects & Filters]] - The built-in audio filters and how to customize them.
 - [[Projects Hub]] - Explore plugins and community projects.

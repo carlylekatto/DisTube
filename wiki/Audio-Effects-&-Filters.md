@@ -1,7 +1,7 @@
 # Audio Effects & Filters
 
 DisTube ships with a set of ready-to-use FFmpeg audio filters. They are managed per queue with the
-[`FilterManager`](https://distube.js.org/classes/FilterManager.html), reachable through `queue.filters`.
+[`FilterManager`](https://carlylekatto.github.io/distube-website/api/classes/filtermanager/), reachable through `queue.filters`.
 
 > [!NOTE]
 > The FFmpeg audio filters are applied when the stream is created. Changing the filters restarts the
@@ -67,7 +67,7 @@ queue.filters.add({
 ```
 
 You can also override or extend the built-in filters globally with the
-[`customFilters`](https://distube.js.org/types/DisTubeOptions.html#customfilters) option:
+[`customFilters`](https://carlylekatto.github.io/distube-website/api/classes/options/#customfilters) option:
 
 ```javascript
 const distube = new DisTube(client, {

@@ -6,7 +6,7 @@ Thank you for your interest in contributing to DisTube! This document provides g
 
 - The issue tracker is for bug reports only.
 - For questions or feature suggestions, please use our [Discord Support Server](https://discord.gg/feaDd9h).
-- Before creating an issue, please check the [FAQ](https://github.com/skick1234/DisTube/wiki/Frequently-Asked-Questions) and existing issues (both open and closed).
+- Before creating an issue, please check the [FAQ](https://github.com/carlylekatto/DisTube/wiki/Frequently-Asked-Questions) and existing issues (both open and closed).
 
 ## 🛠️ Pull Requests
 

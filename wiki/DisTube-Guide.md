@@ -280,7 +280,7 @@ distube.on(Events.INIT_QUEUE, queue => {
 
 ## Next Steps
 
-- Explore the [API Documentation](https://distube.js.org/) for all available methods
+- Explore the [API Documentation](https://carlylekatto.github.io/distube-website/api/) for all available methods
 - Check out [[Audio Effects & Filters]] to enhance the listening experience
 - Learn about the [[Plugin System]] to support more music sources
 - See [[Handling Discord.js Events]] for advanced voice state handling

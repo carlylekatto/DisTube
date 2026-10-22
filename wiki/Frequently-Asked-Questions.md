@@ -12,7 +12,7 @@
 
 - Install FFmpeg on: [Windows](http://blog.gregzaal.com/how-to-install-ffmpeg-on-windows/) - [Linux (Ubuntu, Mint,...)](https://www.tecmint.com/install-ffmpeg-in-linux/)
   > Download FFmpeg from [this repo](https://github.com/BtbN/FFmpeg-Builds/releases) if the download links are not available
-- If you want to run FFmpeg from a custom path, or `ffmpeg-static`.path, e.t.c., you can use [`ffmpeg.path`](https://distube.js.org/types/DisTubeOptions.html) option.
+- If you want to run FFmpeg from a custom path, or `ffmpeg-static`.path, e.t.c., you can use [`ffmpeg.path`](https://carlylekatto.github.io/distube-website/api/classes/options/) option.
 
 ### 2.1 The song ends instantly without any errors<br/>2.2 Error: write EPIPE
 
@@ -22,7 +22,7 @@
 
 #### Solution:
 
-- Check the FFmpeg log to check why it happens with [`ffmpegDebug`](https://distube.js.org/classes/DisTube.html#ffmpegdebug) event
+- Check the FFmpeg log to check why it happens with [`ffmpegDebug`](https://carlylekatto.github.io/distube-website/api/classes/distube/#ffmpegdebug) event
 
 ```ts
 import { Events } from "distube";
@@ -70,8 +70,8 @@ npm install @discordjs/opus
 
 #### Solution
 
-- To turn it on/off by a command, use [queue.toggleAutoplay()](https://distube.js.org/classes/Queue.html#toggleautoplay).
-- To change the queue's default setting, use [initQueue](https://distube.js.org/classes/DisTube.html#initqueue) event.
+- To turn it on/off by a command, use [queue.toggleAutoplay()](https://carlylekatto.github.io/distube-website/api/classes/queue/#toggleautoplay).
+- To change the queue's default setting, use [initQueue](https://carlylekatto.github.io/distube-website/api/classes/distube/#initqueue) event.
 
 ```javascript
 import { Events } from "distube";

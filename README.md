@@ -1,55 +1,50 @@
 <div align="center">
   <p>
-    <a href="https://www.npmjs.com/package/distube" target="_blank"><img src="https://nodei.co/npm/distube.png?downloads=true&downloadRank=true&stars=true"/></a>
-  </p>
-  <p>
-    <a href="https://github.com/skick1234/DisTube/actions" target="_blank"><img alt="GitHub Workflow Status" src="https://img.shields.io/github/actions/workflow/status/skick1234/DisTube/test.yml?branch=main&label=Tests&logo=github&style=flat-square" /></a>
+    <a href="https://github.com/carlylekatto/DisTube/actions" target="_blank"><img alt="GitHub Workflow Status" src="https://img.shields.io/github/actions/workflow/status/carlylekatto/DisTube/test.yml?branch=main&label=Tests&logo=github&style=flat-square" /></a>
     <a href="https://nodejs.org/" target="_blank"><img alt="node-current" src="https://img.shields.io/node/v/distube?logo=node.js&logoColor=white&style=flat-square"/></a>
     <a href="https://discord.js.org/" target="_blank"><img alt="npm peer dependency version" src="https://img.shields.io/npm/dependency-version/distube/peer/discord.js?label=discord.js&logo=discord&logoColor=white&style=flat-square"/></a>
-    <a href="https://app.codecov.io/gh/skick1234/DisTube" target="_blank"><img alt="Codecov branch" src="https://img.shields.io/codecov/c/github/skick1234/DisTube/main?logo=codecov&logoColor=white&style=flat-square&token=WWDYRRSEQW"/></a>
     <br/>
-    <a href="https://www.npmjs.com/package/distube" target="_blank"><img alt="npm" src="https://img.shields.io/npm/dt/distube?logo=npm&style=flat-square"/></a>
-    <a href="https://github.com/skick1234/DisTube/stargazers" target="_blank"><img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/skick1234/DisTube?logo=github&logoColor=white&style=flat-square"/></a>
+    <a href="https://github.com/carlylekatto/DisTube/stargazers" target="_blank"><img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/carlylekatto/DisTube?logo=github&logoColor=white&style=flat-square"/></a>
     <a href="https://discord.gg/feaDd9h" target="_blank"><img alt="Discord" src="https://img.shields.io/discord/732254550689316914?logo=discord&logoColor=white&style=flat-square"/></a>
-  </p>
-  <p>
-    <a href='https://ko-fi.com/skick' target='_blank'><img height='48' src='https://storage.ko-fi.com/cdn/kofi3.png' alt='Buy Me a Coffee at ko-fi.com' /></a>
   </p>
 </div>
 
 # DisTube
 
-DisTube is a comprehensive Discord music bot library built for [Discord.js](https://discord.js.org), offering simplified music commands, effortless playback from diverse sources, and integrated audio filters.
+DisTube plays music in a Discord bot. It handles the voice connection, the queue, the audio filters
+and the sources, so a bot only has to deal with its own commands.
 
-## 🌟 Key Features
+## This fork
 
-- **Easy Integration**: Built on top of [discord.js](https://discord.js.org) v14 and [@discordjs/voice](https://discord.js.org).
-- **Voice Management**: Robust handling of voice connections and queue management.
-- **Audio Filters**: Built-in filters (bassboost, echo, karaoke, etc.) and custom filter support.
-- **Plugin System**: Extensible architecture supporting YouTube, Spotify, SoundCloud, and 700+ other sites.
-- **Type Safety**: Written in TypeScript for a superior development experience.
+This repository is a fork of [skick1234/DisTube](https://github.com/skick1234/DisTube). The v6 line
+is built here, and the two lines part ways from here: the plugin API, the stream server and the
+errors of the plugins belong to this fork.
 
-## 📚 Resources
+Fixes that every user needs are still sent upstream as pull requests, so both lines get them. There
+is one so far, [#353](https://github.com/skick1234/DisTube/pull/353), which turns on the DAVE
+encryption that Discord made mandatory in March 2026.
+- [The documentation of the fork](https://carlylekatto.github.io/distube-website/)
+- [The changelog](./CHANGELOG.md)
 
-| Resource                                                                                  | Description                                                              |
-| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/skick1234/DisTube) | Learn DisTube with AI-powered assistance.                                |
-| [Installation](https://deepwiki.com/skick1234/DisTube/Installation)                       | Detailed requirements and setup guide.                                   |
-| [Guide](https://github.com/skick1234/DisTube/wiki)                                        | Step-by-step handbook: installation, commands, plugins, filters and FAQ. |
-| [API Reference](https://distube.js.org/)                                                  | Complete technical documentation.                                        |
-| [Changelog](https://github.com/skick1234/DisTube/blob/main/CHANGELOG.md)                  | What changed in every version.                                           |
-| [Discord Support](https://discord.gg/feaDd9h)                                             | Join our community for help and discussion.                              |
+## Requirements
 
-## 🚀 Quick Start
+- Node.js 22.12 or later, or Bun
+- FFmpeg on the PATH
+- discord.js 14
+- @discordjs/voice 0.19.1 or later
+
+## Install
 
 ```bash
 npm install distube @discordjs/voice @discordjs/opus
 ```
 
 ```bash
-# Bun is recommended
+# Bun works as well
 bun add distube @discordjs/voice @discordjs/opus
 ```
+
+## Quick start
 
 ```javascript
 const { DisTube } = require("distube");
@@ -64,9 +59,7 @@ const client = new Client({
   ],
 });
 
-const distube = new DisTube(client, {
-  emitNewSongOnly: true,
-});
+const distube = new DisTube(client);
 
 distube.on("playSong", (queue, song) =>
   queue.textChannel.send(`Playing \`${song.name}\` - \`${song.formattedDuration}\``),
@@ -85,20 +78,52 @@ client.on("messageCreate", message => {
 client.login("TOKEN");
 ```
 
-> **v6**: the shortcut methods like `distube.pause(guild)` are gone. Use the queue instead:
-> `distube.getQueue(guild).pause()`. See the [changelog](https://github.com/skick1234/DisTube/blob/main/CHANGELOG.md)
-> for everything that changed.
+The shortcut methods are gone in v6. `distube.pause(guild)` becomes `distube.getQueue(guild).pause()`.
+The changelog lists every removal.
 
-## 🤝 Contributing
+## The plugins
 
-Contributions are welcome! Please read our [Contributing Guidelines](https://github.com/skick1234/DisTube/blob/main/.github/CONTRIBUTING.md) before submitting a pull request.
+DisTube ships no music source. Every source is a plugin, so a bot loads the ones it needs:
 
-## 📄 License
+```javascript
+const { DisTube } = require("distube");
+const { YoutubePlugin } = require("@distube/youtube");
+const { SpotifyPlugin } = require("@distube/spotify");
 
-Licensed under [MIT License](https://github.com/skick1234/DisTube/blob/main/LICENSE)
+const distube = new DisTube(client, {
+  plugins: [new YoutubePlugin(), new SpotifyPlugin()],
+});
+```
 
----
+A plugin that cannot hand out a static URL to FFmpeg registers a handler on the shared stream server
+of DisTube, so the bot runs one HTTP server instead of one per plugin.
 
-<div align="center">
-  <a href='https://ko-fi.com/skick' target='_blank'><img height='48' src='https://storage.ko-fi.com/cdn/kofi3.png' alt='Support me on Ko-fi' /></a>
-</div>
+`search()` returns a `SearchResult` at every level, and the `source` option of the search and of the
+play options routes a query to a single source:
+
+```javascript
+const result = await distube.search("never gonna give you up", { source: "youtube" });
+```
+
+## Documentation
+
+- [Overview](https://carlylekatto.github.io/distube-website/)
+- [Installation](https://carlylekatto.github.io/distube-website/getting-started/installation/)
+- [Quick start](https://carlylekatto.github.io/distube-website/getting-started/quick-start/)
+- [Plugin system](https://carlylekatto.github.io/distube-website/guide/plugins/)
+- [Events](https://carlylekatto.github.io/distube-website/guide/events/)
+- [Audio filters](https://carlylekatto.github.io/distube-website/guide/filters/)
+- [Upgrading from v5](https://carlylekatto.github.io/distube-website/guide/upgrade/)
+- [API reference](https://carlylekatto.github.io/distube-website/api/)
+- [FAQ](https://carlylekatto.github.io/distube-website/faq/)
+
+The wiki of the repository holds the long form pages.
+
+## Contributing
+
+Read the [contributing guidelines](./.github/CONTRIBUTING.md) first. A pull request that fixes
+something should come with a test.
+
+## License
+
+[MIT](./LICENSE)

@@ -1,3 +1,28 @@
+# Updating from v5 to v6
+
+The full guide is in the [documentation of the fork](https://carlylekatto.github.io/distube-website/guide/upgrade/).
+This page holds the short version.
+
+## The removed API
+
+- The 12 shortcut methods of `DisTube`: `pause`, `resume`, `stop`, `setVolume`, `skip`, `previous`,
+  `shuffle`, `jump`, `setRepeatMode`, `toggleAutoplay`, `addRelatedSong` and `seek`. The queue
+  methods replace them: `distube.getQueue(guild).pause()`.
+- `Queue#isPlaying()`, `Queue#isPaused()` and `Queue#playing`. Use the `paused` property and the
+  `isActive` getter.
+- The `InfoExtratorPlugin` and `PlayableExtratorPlugin` aliases, which had a typo in their name.
+
+## The plugin types
+
+`InfoExtractorPlugin` and `PlayableExtractorPlugin` are one type now: `ExtractorPlugin`. A plugin
+that cannot play its own songs sets `playable` to `false`, and the proxy of the song looks for a
+playable version with the other plugins.
+
+## The search
+
+`DisTube#search()` and `Plugin#search()` return a `SearchResult` at every level. The `source` option
+of `SearchOptions` and of `PlayOptions` routes a query to a single source.
+
 # Updating from v4 to v5
 
 ## DisTube
@@ -247,9 +272,9 @@ distube.on("playSong", (queue, song) => {
 ### Addition
 
 New events on v3:
-- [deleteQueue](https://distube.js.org/classes/DisTube.html#deletequeue)
-- [disconnect](https://distube.js.org/classes/DisTube.html#disconnect)
-- [finishSong](https://distube.js.org/classes/DisTube.html#finishsong)
+- [deleteQueue](https://carlylekatto.github.io/distube-website/api/classes/distube/#deletequeue)
+- [disconnect](https://carlylekatto.github.io/distube-website/api/classes/distube/#disconnect)
+- [finishSong](https://carlylekatto.github.io/distube-website/api/classes/distube/#finishsong)
 - searchDone (removed in v5)
 - searchInvalidAnswer (removed in v5)
 - searchNoResult (removed in v5)
@@ -317,8 +342,8 @@ distube.search("A query", {
 
 New methods on v3:
 - playVoiceChannel (replaced with `play` in v4)
-- [addRelatedSong](https://distube.js.org/classes/Queue.html#addrelatedsong)
-- [previous](https://distube.js.org/classes/Queue.html#previous)
+- [addRelatedSong](https://carlylekatto.github.io/distube-website/api/classes/queue/#addrelatedsong)
+- [previous](https://carlylekatto.github.io/distube-website/api/classes/queue/#previous)
 
 Click above links and read the docs for more information.
 
@@ -402,4 +427,4 @@ Example:
 
 New options on v3: `#plugins`, `#savePreviousSongs`, `#ytdlOptions`, `#searchCooldown`, `#emptyCooldown`, `#nsfw`, `#emitAddSongWhenCreatingQueue`, and `#emitAddListWhenCreatingQueue`.
 
-You can check the feature of those options in the [DisTubeOptions](https://distube.js.org/types/DisTubeOptions.html) documentation.
+You can check the feature of those options in the [DisTubeOptions](https://carlylekatto.github.io/distube-website/api/classes/options/) documentation.

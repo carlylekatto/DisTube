@@ -39,7 +39,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/skick1234/DisTube.git"
+    "url": "git+https://github.com/carlylekatto/DisTube.git"
   },
   "keywords": [
     "youtube",
@@ -54,13 +54,12 @@
     "music-bot",
     "discord-js"
   ],
-  "author": "Skick (https://github.com/skick1234)",
+  "author": "carlylekatto (https://github.com/carlylekatto)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/skick1234/DisTube/issues"
+    "url": "https://github.com/carlylekatto/DisTube/issues"
   },
-  "funding": "https://github.com/skick1234/DisTube?sponsor",
-  "homepage": "https://distube.js.org/",
+  "homepage": "https://carlylekatto.github.io/distube-website/",
   "dependencies": {
     "tiny-typed-emitter": "^2.1.0",
     "undici": "^8.12.3"

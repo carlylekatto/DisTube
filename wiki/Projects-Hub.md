@@ -38,4 +38,4 @@
 - [AICoTest](https://github.com/AlexInCube/AlCoTest) - Advanced audiobot.
 
 > [!NOTE]
-> To add your plugins/bots to this list, please [create a pull request](https://github.com/skick1234/DisTube/pulls) with the edited [`wiki/Projects-Hub.md`](https://github.com/skick1234/DisTube/blob/main/wiki/Projects-Hub.md) file.
+> To add your plugins/bots to this list, please [create a pull request](https://github.com/carlylekatto/DisTube/pulls) with the edited [`wiki/Projects-Hub.md`](https://github.com/carlylekatto/DisTube/blob/main/wiki/Projects-Hub.md) file.
