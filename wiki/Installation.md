@@ -16,16 +16,16 @@ Install DisTube and its peer dependencies in your project:
 
 ```bash
 # Using bun (recommended)
-bun add distube @discordjs/voice @discordjs/opus
+bun add @kattowo/distube @discordjs/voice @discordjs/opus
 
 # Using npm
-npm install distube @discordjs/voice @discordjs/opus
+npm install @kattowo/distube @discordjs/voice @discordjs/opus
 
 # Using yarn
-yarn add distube @discordjs/voice @discordjs/opus
+yarn add @kattowo/distube @discordjs/voice @discordjs/opus
 
 # Using pnpm
-pnpm add distube @discordjs/voice @discordjs/opus
+pnpm add @kattowo/distube @discordjs/voice @discordjs/opus
 ```
 
 > [!TIP]

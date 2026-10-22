@@ -1,5 +1,5 @@
 {
-  "name": "distube",
+  "name": "@kattowo/distube",
   "version": "6.0.0",
   "description": "A powerful Discord.js module for simplifying music commands and effortless playback of various sources with integrated audio filters.",
   "main": "./dist/index.js",
@@ -54,7 +54,10 @@
     "music-bot",
     "discord-js"
   ],
-  "author": "carlylekatto (https://github.com/carlylekatto)",
+  "author": {
+    "name": "carlylekatto",
+    "url": "https://github.com/carlylekatto"
+  },
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/carlylekatto/DisTube/issues"
@@ -101,5 +104,9 @@
   "trustedDependencies": [
     "@discordjs/opus",
     "esbuild"
-  ]
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  }
 }

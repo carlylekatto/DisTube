@@ -27,9 +27,11 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # The token of npm is a secret of the repository: NPM_TOKEN. It is an
+      # automation token of the account kattowo, and it has to publish the
+      # scope @kattowo.
       - name: Publish
-        run: |
-          npm publish --access public
-          # npm deprecate distube@"< ${{ github.event.release.tag_name }}" "This version is deprecated, please upgrade to the latest version."
+        run: npm publish --access public --provenance
         env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true

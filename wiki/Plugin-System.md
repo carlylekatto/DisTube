@@ -14,7 +14,7 @@ means you only install and load the sources you actually need.
 ## Using the official plugins
 
 ```javascript
-const { DisTube } = require("distube");
+const { DisTube } = require("@kattowo/distube");
 const { YouTubePlugin } = require("@distube/youtube");
 const { SpotifyPlugin } = require("@distube/spotify");
 
@@ -38,7 +38,7 @@ Every plugin extends one of the three base classes and implements its methods.
 Use it when your source can be searched **and** played:
 
 ```javascript
-const { ExtractorPlugin, PluginType } = require("distube");
+const { ExtractorPlugin, PluginType } = require("@kattowo/distube");
 
 class MyPlugin extends ExtractorPlugin {
   // Check whether the URL is supported by this plugin
@@ -74,7 +74,7 @@ Use it when your source only provides the metadata (for example Spotify). DisTub
 playable version of the track with an extractor plugin:
 
 ```javascript
-const { InfoExtractorPlugin } = require("distube");
+const { InfoExtractorPlugin } = require("@kattowo/distube");
 
 class MyInfoPlugin extends InfoExtractorPlugin {
   async validate(url) {
@@ -97,7 +97,7 @@ class MyInfoPlugin extends InfoExtractorPlugin {
 Use it when your source can be played but not searched:
 
 ```javascript
-const { PlayableExtractorPlugin } = require("distube");
+const { PlayableExtractorPlugin } = require("@kattowo/distube");
 
 class MyPlayablePlugin extends PlayableExtractorPlugin {
   async validate(url) {

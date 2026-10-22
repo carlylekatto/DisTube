@@ -5,7 +5,7 @@ DisTube provides utilities to help you handle Discord.js events for better user 
 ## Leave the voice channel if there is no user in it
 
 ```javascript
-import { isVoiceChannelEmpty } from "distube";
+import { isVoiceChannelEmpty } from "@kattowo/distube";
 
 client.on("voiceStateUpdate", oldState => {
   if (!oldState?.channel) return;
@@ -19,7 +19,7 @@ client.on("voiceStateUpdate", oldState => {
 ## Pause the queue if there is no user in the voice channel and resume it if there is
 
 ```javascript
-import { isVoiceChannelEmpty } from "distube";
+import { isVoiceChannelEmpty } from "@kattowo/distube";
 
 client.on("voiceStateUpdate", oldState => {
   if (!oldState?.channel) return;
@@ -36,7 +36,7 @@ client.on("voiceStateUpdate", oldState => {
 ## Leave voice channel after a period of inactivity
 
 ```javascript
-import { Events } from "distube";
+import { Events } from "@kattowo/distube";
 
 const inactivityTimers = new Map();
 

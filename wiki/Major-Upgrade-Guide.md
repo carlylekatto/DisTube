@@ -45,7 +45,7 @@ Please check the plugin docs for more information.
 
 ```ts
 import { YouTubePlugin } from "@distube/youtube"
-import { DisTube } from "distube"
+import { DisTube } from "@kattowo/distube"
 
 const ytPlugin = new YouTubePlugin(...);
 const distube = new DisTube({
@@ -208,7 +208,7 @@ npm i @discordjs/voice sodium
 v3 is written in TypeScript, so we need to change how to create the DisTube instance.
 
 ```diff
-const DisTube = require("distube")
+const DisTube = require("@kattowo/distube")
 - const distube = new DisTube(options)
 + const distube = new DisTube.default(options) // or new DisTube.DisTube(options)
 ```
@@ -216,8 +216,8 @@ const DisTube = require("distube")
 or
 
 ```diff
-- const DisTube = require("distube")
-+ const { DisTube } = require("distube")
+- const DisTube = require("@kattowo/distube")
++ const { DisTube } = require("@kattowo/distube")
 const distube = new DisTube(options)
 ```
 

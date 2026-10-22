@@ -25,7 +25,7 @@
 - Check the FFmpeg log to check why it happens with [`ffmpegDebug`](https://carlylekatto.github.io/distube-website/api/classes/distube/#ffmpegdebug) event
 
 ```ts
-import { Events } from "distube";
+import { Events } from "@kattowo/distube";
 distube.on(Events.FFMPEG_DEBUG, console.log);
 ```
 
@@ -74,7 +74,7 @@ npm install @discordjs/opus
 - To change the queue's default setting, use [initQueue](https://carlylekatto.github.io/distube-website/api/classes/distube/#initqueue) event.
 
 ```javascript
-import { Events } from "distube";
+import { Events } from "@kattowo/distube";
 
 distube.on(Events.INIT_QUEUE, queue => {
   queue.autoplay = false;

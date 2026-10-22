@@ -12,7 +12,7 @@
 - Copy the content of the exported file and paste it into your code.
 
 ```ts
-import { DisTube } from "distube";
+import { DisTube } from "@kattowo/distube";
 import { YouTubePlugin } from "@distube/youtube";
 
 const distube = new DisTube({
@@ -44,7 +44,7 @@ const distube = new DisTube({
 - Or you can paste it into a file and use `fs.readFileSync` to read it.
 
 ```js
-const { DisTube } = require("distube");
+const { DisTube } = require("@kattowo/distube");
 const fs = require("fs");
 
 const distube = new DisTube({

@@ -36,18 +36,18 @@ encryption that Discord made mandatory in March 2026.
 ## Install
 
 ```bash
-npm install distube @discordjs/voice @discordjs/opus
+npm install @kattowo/distube @discordjs/voice @discordjs/opus
 ```
 
 ```bash
 # Bun works as well
-bun add distube @discordjs/voice @discordjs/opus
+bun add @kattowo/distube @discordjs/voice @discordjs/opus
 ```
 
 ## Quick start
 
 ```javascript
-const { DisTube } = require("distube");
+const { DisTube } = require("@kattowo/distube");
 const { Client, GatewayIntentBits } = require("discord.js");
 
 const client = new Client({
@@ -86,7 +86,7 @@ The changelog lists every removal.
 DisTube ships no music source. Every source is a plugin, so a bot loads the ones it needs:
 
 ```javascript
-const { DisTube } = require("distube");
+const { DisTube } = require("@kattowo/distube");
 const { YoutubePlugin } = require("@distube/youtube");
 const { SpotifyPlugin } = require("@distube/spotify");
 

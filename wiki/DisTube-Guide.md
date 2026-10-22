@@ -27,7 +27,7 @@ First, initialize the DisTube class in your main bot file:
 
 ```javascript
 const { Client, GatewayIntentBits } = require("discord.js");
-const { DisTube } = require("distube");
+const { DisTube } = require("@kattowo/distube");
 
 const client = new Client({
   intents: [
@@ -53,7 +53,7 @@ client.login("YOUR_BOT_TOKEN");
 DisTube emits various events to keep you updated on the playback status:
 
 ```javascript
-const { Events } = require("distube");
+const { Events } = require("@kattowo/distube");
 
 distube
   .on(Events.PLAY_SONG, (queue, song) =>
@@ -220,7 +220,7 @@ DisTube is written in TypeScript and provides full type definitions:
 
 ```typescript
 import { Client, GatewayIntentBits, Message } from "discord.js";
-import { DisTube, Events, Queue, Song } from "distube";
+import { DisTube, Events, Queue, Song } from "@kattowo/distube";
 
 const distube = new DisTube(client);
 
@@ -240,7 +240,7 @@ distube.on(Events.FINISH, queue => {
 });
 
 // Leave when voice channel is empty
-import { isVoiceChannelEmpty } from "distube";
+import { isVoiceChannelEmpty } from "@kattowo/distube";
 
 client.on("voiceStateUpdate", oldState => {
   if (!oldState?.channel) return;
@@ -256,7 +256,7 @@ client.on("voiceStateUpdate", oldState => {
 DisTube doesn't include music sources by default. Use official plugins:
 
 ```javascript
-import { DisTube } from "distube";
+import { DisTube } from "@kattowo/distube";
 import { YouTubePlugin } from "@distube/youtube";
 import { SpotifyPlugin } from "@distube/spotify";
 import { SoundCloudPlugin } from "@distube/soundcloud";

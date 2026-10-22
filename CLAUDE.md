@@ -230,7 +230,7 @@ bun run test -- Queue     # Run specific test file
 ### Creating a Plugin
 
 ```typescript
-import { ExtractorPlugin, type Song, type Playlist } from "distube";
+import { ExtractorPlugin, type Song, type Playlist } from "@kattowo/distube";
 
 export class MyPlugin extends ExtractorPlugin {
   override async validate(url: string): Promise<boolean> {

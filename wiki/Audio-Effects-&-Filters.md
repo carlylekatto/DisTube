@@ -58,7 +58,7 @@ queue.filters.values; // [{ name: "nightcore", value: "..." }, ...]
 A custom filter is a name and its FFmpeg audio filter argument:
 
 ```javascript
-const { Filter } = require("distube");
+const { Filter } = require("@kattowo/distube");
 
 queue.filters.add({
   name: "my-filter",
