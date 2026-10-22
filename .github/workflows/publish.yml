@@ -1,5 +1,10 @@
 name: Publish distube
 on:
+  # A tag is the trigger of a release: the workflow publishes the version and
+  # creates the release of it.
+  push:
+    tags: ["*"]
+  # A release that was created by hand publishes the version too.
   release:
     types: [published]
   workflow_dispatch:
@@ -9,7 +14,7 @@ on:
         type: boolean
         default: false
 permissions:
-  contents: read
+  contents: write
   id-token: write
 jobs:
   publish:
@@ -47,6 +52,10 @@ jobs:
         id: version
         run: |
           version=$(npm pkg get version | tr -d '"')
+          if [ "${{ github.event_name }}" = "push" ] && [ "$version" != "${{ github.ref_name }}" ]; then
+            echo "The tag is ${{ github.ref_name }} and the version is $version."
+            exit 1
+          fi
           if npm view "@kattowo/distube@$version" version > /dev/null 2>&1; then
             echo "published=false" >> "$GITHUB_OUTPUT"
             echo "the version $version is already on npm"
@@ -66,3 +75,15 @@ jobs:
       - name: Publish
         if: steps.version.outputs.published == 'true' && inputs.publish == true
         run: npm publish --access public
+
+      # The release of the version, with the notes of the changelog. The token
+      # of the workflow is enough, the release is in the same repository.
+      - name: Create the release
+        if: steps.version.outputs.published == 'true' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(npm pkg get version | tr -d '"')
+          gh release create "$version" \
+            --title "$version" \
+            --notes "$(node scripts/release-notes.mjs "$version")"
