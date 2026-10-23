@@ -1,5 +1,5 @@
 import type { FFmpegArg as FFmpegArgsValue, Filter, FilterResolvable, Queue } from "../..";
-import { DisTubeError } from "../..";
+import { DisTubeError, Events } from "../..";
 import { BaseManager } from "./BaseManager";
 
 /**
@@ -32,7 +32,12 @@ export class FilterManager extends BaseManager<Filter> {
     throw new DisTubeError("INVALID_TYPE", "FilterResolvable", filter, "filter");
   }
 
-  #apply() {
+  #apply(oldFilters: string[]) {
+    const newFilters = this.names;
+    const changed = oldFilters.length !== newFilters.length || !oldFilters.every(f => newFilters.includes(f));
+    if (changed) {
+      this.emit(Events.CHANGE_FILTER, this.queue, newFilters, oldFilters);
+    }
     // The FFmpeg audio filters are applied when the stream is created, so the
     // stream has to be restarted. The restart never interrupts the playback for
     // good: a failure keeps the current song in the queue.
@@ -54,6 +59,7 @@ export class FilterManager extends BaseManager<Filter> {
    * ```
    */
   add(filterOrFilters: FilterResolvable | FilterResolvable[], override = false) {
+    const oldFilters = this.names;
     if (Array.isArray(filterOrFilters)) {
       for (const filter of filterOrFilters) {
         const ft = this.#resolve(filter);
@@ -63,7 +69,7 @@ export class FilterManager extends BaseManager<Filter> {
       const ft = this.#resolve(filterOrFilters);
       if (override || !this.has(ft)) this.collection.set(ft.name, ft);
     }
-    this.#apply();
+    this.#apply(oldFilters);
     return this;
   }
 
@@ -84,12 +90,13 @@ export class FilterManager extends BaseManager<Filter> {
    */
   set(filters: FilterResolvable[]) {
     if (!Array.isArray(filters)) throw new DisTubeError("INVALID_TYPE", "Array<FilterResolvable>", filters, "filters");
+    const oldFilters = this.names;
     this.collection.clear();
     for (const f of filters) {
       const filter = this.#resolve(f);
       this.collection.set(filter.name, filter);
     }
-    this.#apply();
+    this.#apply(oldFilters);
     return this;
   }
 
@@ -104,9 +111,10 @@ export class FilterManager extends BaseManager<Filter> {
    * @throws {@link DisTubeError} When a filter is not a valid {@link FilterResolvable}
    */
   remove(filterOrFilters: FilterResolvable | FilterResolvable[]) {
+    const oldFilters = this.names;
     if (Array.isArray(filterOrFilters)) filterOrFilters.forEach(f => this.#removeFn(f));
     else this.#removeFn(filterOrFilters);
-    this.#apply();
+    this.#apply(oldFilters);
     return this;
   }
 

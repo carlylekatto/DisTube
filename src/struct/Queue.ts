@@ -66,6 +66,7 @@ export class Queue extends DisTubeBase {
    */
   _beginTime: number;
   #filters: FilterManager;
+  #initialized = false;
   /**
    * Whether or not the queue is being updated manually (skip, jump, previous)
    * @internal
@@ -109,6 +110,7 @@ export class Queue extends DisTubeBase {
       input: { ...this.options.ffmpeg.args.input },
       output: { ...this.options.ffmpeg.args.output },
     };
+    this.#initialized = true;
   }
   #addToPreviousSongs(songs: Song | Song[]) {
     if (Array.isArray(songs)) {
@@ -191,7 +193,11 @@ export class Queue extends DisTubeBase {
    * negative
    */
   set volume(value: number) {
+    const oldVolume = this.voice.volume;
     this.voice.volume = value;
+    if (this.#initialized && oldVolume !== value) {
+      this.emit(Events.SET_VOLUME, this, value, oldVolume);
+    }
   }
   /**
    * Add a song or a list of songs to the queue.
@@ -238,6 +244,7 @@ export class Queue extends DisTubeBase {
       if (this.paused) throw new DisTubeError("PAUSED");
       this.paused = true;
       this.voice.pause();
+      this.emit(Events.PAUSE_SONG, this, this.songs[0]);
       return this;
     } finally {
       this._taskQueue.resolve();
@@ -258,6 +265,7 @@ export class Queue extends DisTubeBase {
       if (!this.paused) throw new DisTubeError("RESUMED");
       this.paused = false;
       this.voice.unpause();
+      this.emit(Events.RESUME_SONG, this, this.songs[0]);
       return this;
     } finally {
       this._taskQueue.resolve();
@@ -332,6 +340,7 @@ export class Queue extends DisTubeBase {
         [this.songs[i], this.songs[j]] = [this.songs[j], this.songs[i]];
       }
       this.songs.unshift(playing);
+      this.emit(Events.SHUFFLE_QUEUE, this, this.songs);
       return this;
     } finally {
       this._taskQueue.resolve();
@@ -369,6 +378,7 @@ export class Queue extends DisTubeBase {
         } else {
           this.#addToPreviousSongs(skipped);
         }
+        this.emit(Events.SKIP_SONG, this, skipped[0]);
       } else if (!this.options.savePreviousSongs) {
         throw new DisTubeError("DISABLED_OPTION", "savePreviousSongs");
       } else {
@@ -415,6 +425,7 @@ export class Queue extends DisTubeBase {
       if (Number.isNaN(time) || time < 0) throw new DisTubeError("NUMBER_COMPARE", "time", "bigger or equal to", 0);
       this._beginTime = time;
       await this.play(false);
+      this.emit(Events.SEEK_SONG, this, this.songs[0], time);
       return this;
     } finally {
       this._taskQueue.resolve();

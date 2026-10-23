@@ -95,13 +95,23 @@ export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
           this.leave();
         } else if (newState.reason === VoiceConnectionDisconnectReason.WebSocketClose && newState.closeCode === 4014) {
           // Move to other channel
-          entersState(this.connection, VoiceConnectionStatus.Connecting, RECONNECT_TIMEOUT_MS).catch(() => {
-            if (
-              ![VoiceConnectionStatus.Ready, VoiceConnectionStatus.Connecting].includes(this.connection.state.status)
-            ) {
-              this.leave();
-            }
-          });
+          entersState(this.connection, VoiceConnectionStatus.Connecting, RECONNECT_TIMEOUT_MS)
+            .then(() => entersState(this.connection, VoiceConnectionStatus.Ready, RECONNECT_TIMEOUT_MS))
+            .then(() => {
+              const oldChannel = this.#channel;
+              const currentChannel = this.channel;
+              if (oldChannel && currentChannel && oldChannel.id !== currentChannel.id) {
+                this.#channel = currentChannel;
+                this.emit("channelChange", oldChannel, currentChannel);
+              }
+            })
+            .catch(() => {
+              if (
+                ![VoiceConnectionStatus.Ready, VoiceConnectionStatus.Connecting].includes(this.connection.state.status)
+              ) {
+                this.leave();
+              }
+            });
         } else if (this.connection.rejoinAttempts < RECONNECT_MAX_ATTEMPTS) {
           // Try to rejoin
           setTimeout(
@@ -162,8 +172,12 @@ export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
       if (channel.full) throw new DisTubeError("VOICE_FULL");
       else throw new DisTubeError("VOICE_MISSING_PERMS");
     }
+    const oldChannel = this.#channel;
     this.connection = this.#join(channel);
     this.#channel = channel;
+    if (oldChannel && oldChannel.id !== channel.id) {
+      this.emit("channelChange", oldChannel, channel);
+    }
   }
   #join(channel: VoiceBasedChannel) {
     return joinVoiceChannel({

@@ -47,6 +47,9 @@ export class QueueManager extends GuildIdManager<Queue> {
       },
       error: error => void this.#handlePlayingError(queue, error),
       finish: () => void this.handleSongFinish(queue),
+      channelChange: (oldChannel, newChannel) => {
+        this.emit(Events.VOICE_CHANNEL_CHANGE, queue, oldChannel, newChannel);
+      },
     };
     for (const event of objectKeys(queue._listeners)) {
       queue.voice.on(event, queue._listeners[event]);

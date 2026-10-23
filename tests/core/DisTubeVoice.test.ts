@@ -188,6 +188,20 @@ describe("DisTubeVoice", () => {
         voice.channel = noPermsChannel;
       }).toThrow(DisTubeError);
     });
+
+    it("emits channelChange when moving to another valid channel", () => {
+      const manager = createMockVoiceManager();
+      const channel = createMockChannel({ id: "111111111111111111" });
+      const voice = new DisTubeVoice(manager, channel);
+
+      const listener = vi.fn();
+      voice.on("channelChange", listener);
+
+      const newChannel = createMockChannel({ id: "222222222222222222" });
+      voice.channel = newChannel;
+
+      expect(listener).toHaveBeenCalledWith(channel, newChannel);
+    });
   });
 
   describe("volume", () => {

@@ -3,6 +3,7 @@ import { DisTubeError, DisTubeStream, Events, Queue, QueueManager, type Song } f
 
 vi.mock("@/core/DisTubeStream", () => ({
   DisTubeStream: vi.fn(() => ({ on: vi.fn() })),
+  checkFFmpeg: vi.fn(),
 }));
 
 describe("QueueManager", () => {
@@ -314,6 +315,35 @@ describe("QueueManager", () => {
         // Then verify it was reset
         expect(queue._beginTime).toBe(0);
       });
+    });
+  });
+
+  describe("voice channel change listener", () => {
+    it("emits VOICE_CHANNEL_CHANGE when voice channelChange listener is triggered", async () => {
+      const mockDisTube = createMockDisTube();
+      const mockVoice = {
+        ...createMockVoice(),
+        id: "234567890123456789",
+        join: vi.fn().mockResolvedValue(undefined),
+      };
+      mockDisTube.voices.create.mockReturnValue(mockVoice);
+      const queueManager = new QueueManager(mockDisTube);
+
+      const mockChannel = {
+        id: "123456789012345678",
+        guildId: "234567890123456789",
+        guild: {},
+        client: {},
+      } as any;
+
+      const queue = await queueManager.create(mockChannel);
+      expect(queue._listeners?.channelChange).toBeDefined();
+
+      const oldChannel = { id: "111111111111111111" } as any;
+      const newChannel = { id: "222222222222222222" } as any;
+      queue._listeners!.channelChange(oldChannel, newChannel);
+
+      expect(mockDisTube.emit).toHaveBeenCalledWith(Events.VOICE_CHANNEL_CHANGE, queue, oldChannel, newChannel);
     });
   });
 });

@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { FilterResolvable, Queue } from "@";
-import { DisTubeError, defaultFilters, FilterManager } from "@";
+import { DisTubeError, defaultFilters, Events, FilterManager } from "@";
 
+const emit = vi.fn();
 const restartStream = vi.fn().mockResolvedValue(undefined);
 const queue = <Queue>(<unknown>{
-  distube: { filters: defaultFilters },
+  distube: { filters: defaultFilters, emit },
   debug: vi.fn(),
   _restartStream: restartStream,
 });
@@ -30,6 +31,7 @@ describe("FilterManager#add()", () => {
     expect(filters.values).toEqual([{ name: "3d", value: defaultFilters["3d"] }]);
     expect(filters.ffmpegArgs).toEqual({ af: defaultFilters["3d"] });
     expect(restartStream).toHaveBeenCalledTimes(1);
+    expect(emit).toHaveBeenCalledWith(Events.CHANGE_FILTER, queue, ["3d"], []);
   });
   test("Add a filter without override", () => {
     const oldFilter = filters.collection.get("3d");

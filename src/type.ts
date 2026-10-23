@@ -99,6 +99,38 @@ export enum Events {
    * Emitted to provide debug information from DisTube's operation.
    */
   DEBUG = "debug",
+  /**
+   * Emitted when a guild stream is paused.
+   */
+  PAUSE_SONG = "pauseSong",
+  /**
+   * Emitted when a paused guild stream is resumed.
+   */
+  RESUME_SONG = "resumeSong",
+  /**
+   * Emitted when a guild stream is seeked to a new position.
+   */
+  SEEK_SONG = "seekSong",
+  /**
+   * Emitted when the volume of a guild stream is changed.
+   */
+  SET_VOLUME = "setVolume",
+  /**
+   * Emitted after the songs of a {@link Queue} have been shuffled.
+   */
+  SHUFFLE_QUEUE = "shuffleQueue",
+  /**
+   * Emitted when a song is skipped.
+   */
+  SKIP_SONG = "skipSong",
+  /**
+   * Emitted when the audio filters of a {@link Queue} are changed.
+   */
+  CHANGE_FILTER = "changeFilter",
+  /**
+   * Emitted when the bot is moved to another voice channel.
+   */
+  VOICE_CHANNEL_CHANGE = "voiceChannelChange",
 }
 
 /**
@@ -162,6 +194,38 @@ export type DisTubeEvents = {
    * Emitted when a song starts playing.
    */
   [Events.PLAY_SONG]: [queue: Queue, song: Song];
+  /**
+   * Emitted when a guild stream is paused.
+   */
+  [Events.PAUSE_SONG]: [queue: Queue, song: Song];
+  /**
+   * Emitted when a paused guild stream is resumed.
+   */
+  [Events.RESUME_SONG]: [queue: Queue, song: Song];
+  /**
+   * Emitted when a guild stream is seeked to a new position.
+   */
+  [Events.SEEK_SONG]: [queue: Queue, song: Song, position: number];
+  /**
+   * Emitted when the volume of a guild stream is changed.
+   */
+  [Events.SET_VOLUME]: [queue: Queue, volume: number, oldVolume: number];
+  /**
+   * Emitted after the songs of a {@link Queue} have been shuffled.
+   */
+  [Events.SHUFFLE_QUEUE]: [queue: Queue, songs: Song[]];
+  /**
+   * Emitted when a song is skipped.
+   */
+  [Events.SKIP_SONG]: [queue: Queue, song: Song];
+  /**
+   * Emitted when the audio filters of a {@link Queue} are changed.
+   */
+  [Events.CHANGE_FILTER]: [queue: Queue, newFilters: string[], oldFilters: string[]];
+  /**
+   * Emitted when the bot is moved to another voice channel.
+   */
+  [Events.VOICE_CHANNEL_CHANGE]: [queue: Queue, oldChannel: VoiceBasedChannel, newChannel: VoiceBasedChannel];
 };
 
 /**
@@ -192,6 +256,12 @@ export type DisTubeVoiceEvents = {
    * Emitted when the audio player becomes idle, i.e. the song is finished.
    */
   finish: () => Awaitable;
+  /**
+   * Emitted when the connection moves to another voice channel.
+   * @param oldChannel - The previous voice channel
+   * @param newChannel - The new voice channel
+   */
+  channelChange: (oldChannel: VoiceBasedChannel, newChannel: VoiceBasedChannel) => Awaitable;
 };
 
 /**

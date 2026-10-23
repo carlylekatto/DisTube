@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DisTubeError, Queue, RepeatMode, type Song } from "@";
+import { DisTubeError, Events, Queue, RepeatMode, type Song } from "@";
 
 describe("Queue", () => {
   const createMockVoice = () =>
@@ -203,6 +203,7 @@ describe("Queue", () => {
       expect(queue.songs).toEqual([song2, song1]);
       expect(queue.previousSongs).toEqual([]);
       expect(queue._manualUpdate).toBe(true);
+      expect(mockDisTube.emit).toHaveBeenCalledWith(Events.SKIP_SONG, queue, song1);
     });
 
     it("jump(4) with requeue: true results in [5, 1, 2, 3, 4] and empty previousSongs", async () => {
@@ -214,6 +215,7 @@ describe("Queue", () => {
       expect(queue.songs.map(s => s.id)).toEqual(["5", "1", "2", "3", "4"]);
       expect(queue.previousSongs).toEqual([]);
       expect(queue._manualUpdate).toBe(true);
+      expect(mockDisTube.emit).toHaveBeenCalledWith(Events.SKIP_SONG, queue, expect.objectContaining({ id: "1" }));
     });
   });
 
@@ -253,6 +255,7 @@ describe("Queue", () => {
 
       expect(mockDisTube.queues.playSong).toHaveBeenCalledWith(queue, false);
       expect(queue.currentTime).toBe(30);
+      expect(mockDisTube.emit).toHaveBeenCalledWith(Events.SEEK_SONG, queue, queue.songs[0], 30);
     });
 
     it("play() delegates to queues.playSong with emitPlaySong parameter", () => {
@@ -426,6 +429,7 @@ describe("Queue", () => {
 
       expect(queue.volume).toBe(75);
       expect(result).toBe(queue);
+      expect(mockDisTube.emit).toHaveBeenCalledWith(Events.SET_VOLUME, queue, 75, 50);
     });
   });
 
@@ -506,12 +510,15 @@ describe("Queue", () => {
     it("pause sets paused state and calls voice.pause", async () => {
       const mockVoice = createMockVoice();
       const queue = new Queue(mockDisTube, mockVoice);
+      const song = { id: "1" } as Song;
+      queue.songs = [song];
       queue.paused = false;
 
       const result = await queue.pause();
 
       expect(queue.paused).toBe(true);
       expect(mockVoice.pause).toHaveBeenCalled();
+      expect(mockDisTube.emit).toHaveBeenCalledWith(Events.PAUSE_SONG, queue, song);
       expect(result).toBe(queue);
     });
 
@@ -525,12 +532,15 @@ describe("Queue", () => {
     it("resume clears paused state and calls voice.unpause", async () => {
       const mockVoice = createMockVoice();
       const queue = new Queue(mockDisTube, mockVoice);
+      const song = { id: "1" } as Song;
+      queue.songs = [song];
       queue.paused = true;
 
       const result = await queue.resume();
 
       expect(queue.paused).toBe(false);
       expect(mockVoice.unpause).toHaveBeenCalled();
+      expect(mockDisTube.emit).toHaveBeenCalledWith(Events.RESUME_SONG, queue, song);
       expect(result).toBe(queue);
     });
 
@@ -566,6 +576,7 @@ describe("Queue", () => {
 
       // First song should remain the same
       expect(queue.songs[0]).toBe(song1);
+      expect(mockDisTube.emit).toHaveBeenCalledWith(Events.SHUFFLE_QUEUE, queue, queue.songs);
       expect(result).toBe(queue);
     });
 
