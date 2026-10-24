@@ -131,6 +131,18 @@ export enum Events {
    * Emitted when the bot is moved to another voice channel.
    */
   VOICE_CHANNEL_CHANGE = "voiceChannelChange",
+  /**
+   * Emitted when DisTube starts pre-buffering / pre-fetching the next song in a {@link Queue}.
+   */
+  PRELOAD_SONG = "preloadSong",
+  /**
+   * Emitted when the next song in a {@link Queue} has been pre-buffered and is ready.
+   */
+  PRELOADED_SONG = "preloadedSong",
+  /**
+   * Emitted when pre-buffering the next song in a {@link Queue} fails.
+   */
+  PRELOAD_ERROR = "preloadError",
 }
 
 /**
@@ -226,6 +238,18 @@ export type DisTubeEvents = {
    * Emitted when the bot is moved to another voice channel.
    */
   [Events.VOICE_CHANNEL_CHANGE]: [queue: Queue, oldChannel: VoiceBasedChannel, newChannel: VoiceBasedChannel];
+  /**
+   * Emitted when DisTube starts pre-buffering / pre-fetching the next song in a {@link Queue}.
+   */
+  [Events.PRELOAD_SONG]: [queue: Queue, song: Song];
+  /**
+   * Emitted when the next song in a {@link Queue} has been pre-buffered and is ready.
+   */
+  [Events.PRELOADED_SONG]: [queue: Queue, song: Song];
+  /**
+   * Emitted when pre-buffering the next song in a {@link Queue} fails.
+   */
+  [Events.PRELOAD_ERROR]: [queue: Queue, song: Song, error: Error];
 };
 
 /**
@@ -306,6 +330,21 @@ export type FilterResolvable = string | Filter;
 export type Filters = Record<string, string>;
 
 /**
+ * The validated {@link DisTubeOptions.preload} options of a {@link DisTube} instance.
+ */
+export type PreloadOptions = {
+  /**
+   * Whether or not preloading is enabled.
+   */
+  enabled: boolean;
+  /**
+   * The number of seconds remaining in the currently playing song before
+   * preloading starts.
+   */
+  threshold: number;
+};
+
+/**
  * DisTube options
  */
 export type DisTubeOptions = {
@@ -368,6 +407,31 @@ export type DisTubeOptions = {
    * @default 10000
    */
   stuckThreshold?: number;
+  /**
+   * Pre-fetch stream information and prepare the stream for the next song in
+   * the queue before the current song finishes playing, to reduce the delay
+   * between two songs.
+   *
+   * Can be a simple `boolean` to toggle it with the default threshold, or an
+   * object to configure it:
+   * - `enabled`: whether or not preloading is enabled (@default false)
+   * - `threshold`: the number of seconds remaining in the currently playing
+   *   song before preloading starts (@default 15)
+   * @default false
+   */
+  preload?:
+    | boolean
+    | {
+        /**
+         * Whether or not preloading is enabled.
+         */
+        enabled?: boolean;
+        /**
+         * The number of seconds remaining in the currently playing song before
+         * preloading starts.
+         */
+        threshold?: number;
+      };
   /**
    * FFmpeg options
    */

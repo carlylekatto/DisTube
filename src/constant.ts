@@ -71,6 +71,11 @@ export const defaultFilters: Filters = {
 };
 
 /**
+ * Default number of seconds remaining in the currently playing song before preloading starts.
+ */
+export const DEFAULT_PRELOAD_THRESHOLD_SECS = 15;
+
+/**
  * The default options of a {@link DisTube} instance.
  *
  * They are overridden by the options given to the constructor of
@@ -86,4 +91,5 @@ export const defaultOptions = {
   joinNewVoiceChannel: true,
   unhandledError: "log",
   stuckThreshold: STUCK_THRESHOLD_MS,
+  preload: false,
 } satisfies DisTubeOptions;

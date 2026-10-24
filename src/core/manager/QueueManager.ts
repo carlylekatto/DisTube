@@ -155,29 +155,42 @@ export class QueueManager extends GuildIdManager<Queue> {
     }
     try {
       const song = queue.songs[0];
-      this.debug(`[${queue.id}] Getting stream from: ${song}`);
-      await this.handler.attachStreamInfo(song);
-      const willPlaySong = song.stream.playFromSource ? song : song.stream.song;
-      const stream = willPlaySong?.stream;
-      if (!willPlaySong || !stream?.playFromSource || !stream.url) throw new DisTubeError("NO_STREAM_URL", `${song}`);
-      this.debug(`[${queue.id}] Creating DisTubeStream for: ${willPlaySong}`);
-      const streamOptions = {
-        ffmpeg: {
-          path: this.options.ffmpeg.path,
-          args: {
-            global: { ...queue.ffmpegArgs.global },
-            input: { ...queue.ffmpegArgs.input },
-            output: { ...queue.ffmpegArgs.output, ...queue.filters.ffmpegArgs },
+      let dtStream: DisTubeStream;
+
+      if (queue._preloadedSong === song && queue._preloadedStream) {
+        this.debug(`[${queue.id}] Using preloaded stream for: ${song}`);
+        dtStream = queue._preloadedStream;
+        queue._preloadedSong = undefined;
+        queue._preloadedStream = undefined;
+      } else {
+        queue._clearPreload();
+        this.debug(`[${queue.id}] Getting stream from: ${song}`);
+        await this.handler.attachStreamInfo(song);
+        const willPlaySong = song.stream.playFromSource ? song : song.stream.song;
+        const stream = willPlaySong?.stream;
+        if (!willPlaySong || !stream?.playFromSource || !stream.url) throw new DisTubeError("NO_STREAM_URL", `${song}`);
+        this.debug(`[${queue.id}] Creating DisTubeStream for: ${willPlaySong}`);
+        const streamOptions = {
+          ffmpeg: {
+            path: this.options.ffmpeg.path,
+            args: {
+              global: { ...queue.ffmpegArgs.global },
+              input: { ...queue.ffmpegArgs.input },
+              output: { ...queue.ffmpegArgs.output, ...queue.filters.ffmpegArgs },
+            },
           },
-        },
-        seek: willPlaySong.duration ? queue._beginTime : undefined,
-      };
+          seek: willPlaySong.duration ? queue._beginTime : undefined,
+        };
+        queue._beginTime = 0;
+        dtStream = new DisTubeStream(stream.url, streamOptions);
+        dtStream.on("debug", data => this.emit(Events.FFMPEG_DEBUG, `[${queue.id}] ${data}`));
+      }
+
       queue._beginTime = 0;
-      const dtStream = new DisTubeStream(stream.url, streamOptions);
-      dtStream.on("debug", data => this.emit(Events.FFMPEG_DEBUG, `[${queue.id}] ${data}`));
-      this.debug(`[${queue.id}] Started playing: ${willPlaySong}`);
+      this.debug(`[${queue.id}] Started playing: ${song}`);
       await queue.voice.play(dtStream);
       if (emitPlaySong) this.emit(Events.PLAY_SONG, queue, song);
+      this.schedulePreload(queue);
     } catch (e: unknown) {
       const error = e instanceof Error ? e : new Error(String(e));
       if (options?.keepSongOnError) {
@@ -188,6 +201,117 @@ export class QueueManager extends GuildIdManager<Queue> {
         return;
       }
       await this.#handlePlayingError(queue, error);
+    }
+  }
+
+  /**
+   * Schedule preloading the next song in the queue before the current song finishes.
+   * @param queue - The guild queue
+   */
+  schedulePreload(queue: Queue) {
+    if (!this.options.preload.enabled || queue.stopped || queue.paused) return;
+    if (queue._preloadTimeout) {
+      clearTimeout(queue._preloadTimeout);
+      queue._preloadTimeout = undefined;
+    }
+
+    const currentSong = queue.songs[0];
+    const nextSong = queue.songs[1];
+    if (!currentSong || !nextSong) return;
+
+    if (queue._preloadedSong === nextSong && queue._preloadedStream) return;
+
+    const threshold = this.options.preload.threshold;
+    const duration = currentSong.duration ?? 0;
+    const currentTime = queue.currentTime;
+    const remaining = duration > 0 && Number.isFinite(currentTime) ? duration - currentTime : 0;
+
+    if (duration === 0 || remaining <= threshold) {
+      void this.preloadNextSong(queue);
+    } else {
+      const delayMs = Math.max(0, (remaining - threshold) * 1000);
+      queue._preloadTimeout = setTimeout(() => {
+        queue._preloadTimeout = undefined;
+        void this.preloadNextSong(queue);
+      }, delayMs);
+      queue._preloadTimeout.unref?.();
+    }
+  }
+
+  /**
+   * Preload the next song in the queue.
+   * @param queue - The guild queue
+   */
+  async preloadNextSong(queue: Queue) {
+    // Only one preload task may run at a time: playSong fires a preload
+    // internally, and callers may request one concurrently as well.
+    if (queue._preloading) return queue._preloading;
+    const task = this.#preloadTask(queue);
+    queue._preloading = task;
+    try {
+      await task;
+    } finally {
+      if (queue._preloading === task) queue._preloading = undefined;
+    }
+  }
+
+  async #preloadTask(queue: Queue) {
+    if (!this.options.preload.enabled || queue.stopped || queue.paused) return;
+    const nextSong = queue.songs[1];
+    if (!nextSong) return;
+    if (queue._preloadedSong === nextSong && queue._preloadedStream) return;
+    // The generation is bumped by _clearPreload(): when the preloaded state
+    // is invalidated while this task is running, its result must be dropped.
+    const generation = queue._preloadGeneration;
+
+    this.debug(`[${queue.id}] Preloading next song: ${nextSong}`);
+    this.emit(Events.PRELOAD_SONG, queue, nextSong);
+
+    try {
+      await this.handler.attachStreamInfo(nextSong);
+
+      if (queue.stopped || queue.songs[1] !== nextSong || generation !== queue._preloadGeneration) return;
+
+      const willPlaySong = nextSong.stream.playFromSource ? nextSong : nextSong.stream.song;
+      const stream = willPlaySong?.stream;
+      if (!willPlaySong || !stream?.playFromSource || !stream.url) {
+        throw new DisTubeError("NO_STREAM_URL", `${nextSong}`);
+      }
+
+      const streamOptions = {
+        ffmpeg: {
+          path: this.options.ffmpeg.path,
+          args: {
+            global: { ...queue.ffmpegArgs.global },
+            input: { ...queue.ffmpegArgs.input },
+            output: { ...queue.ffmpegArgs.output, ...queue.filters.ffmpegArgs },
+          },
+        },
+        seek: undefined,
+      };
+
+      const dtStream = new DisTubeStream(stream.url, streamOptions);
+      dtStream.on("debug", data => this.emit(Events.FFMPEG_DEBUG, `[${queue.id}] [preload] ${data}`));
+
+      if (queue.stopped || queue.songs[1] !== nextSong || generation !== queue._preloadGeneration) {
+        dtStream.kill();
+        return;
+      }
+
+      queue._preloadedSong = nextSong;
+      queue._preloadedStream = dtStream;
+
+      this.debug(`[${queue.id}] Successfully preloaded next song: ${nextSong}`);
+      this.emit(Events.PRELOADED_SONG, queue, nextSong);
+    } catch (e: unknown) {
+      if (queue._preloadedSong === nextSong) {
+        queue._preloadedSong = undefined;
+        queue._preloadedStream?.kill();
+        queue._preloadedStream = undefined;
+      }
+      const error = e instanceof Error ? e : new Error(String(e));
+      this.debug(`[${queue.id}] Preload failed for ${nextSong}: ${error.message}`);
+      this.emit(Events.PRELOAD_ERROR, queue, nextSong, error);
     }
   }
 }

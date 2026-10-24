@@ -590,4 +590,89 @@ describe("Queue", () => {
       expect(result).toBe(queue);
     });
   });
+
+  describe("preload management", () => {
+    const mockDisTube = {
+      options: {
+        savePreviousSongs: true,
+        ffmpeg: { path: "ffmpeg", args: { global: {}, input: {}, output: {} } },
+      },
+      emit: vi.fn(),
+      debug: vi.fn(),
+      queues: { playSong: vi.fn(), schedulePreload: vi.fn(), remove: vi.fn() },
+    } as any;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it("_clearPreload cancels the pending timer and kills the preloaded stream", () => {
+      const queue = new Queue(mockDisTube, createMockVoice());
+      const kill = vi.fn();
+      queue._preloadedStream = { kill } as any;
+      queue._preloadedSong = { id: "1" } as Song;
+      queue._preloadTimeout = setTimeout(() => {}, 1000);
+      const timeout = queue._preloadTimeout;
+      const clearSpy = vi.spyOn(global, "clearTimeout");
+
+      queue._clearPreload();
+
+      expect(clearSpy).toHaveBeenCalledWith(timeout);
+      expect(queue._preloadTimeout).toBeUndefined();
+      expect(kill).toHaveBeenCalled();
+      expect(queue._preloadedSong).toBeUndefined();
+      expect(queue._preloadedStream).toBeUndefined();
+    });
+
+    it("_clearPreload does nothing when nothing is preloaded", () => {
+      const queue = new Queue(mockDisTube, createMockVoice());
+
+      expect(() => queue._clearPreload()).not.toThrow();
+      expect(queue._preloadTimeout).toBeUndefined();
+    });
+
+    it("addToQueue schedules a preload of the new next song", () => {
+      const queue = new Queue(mockDisTube, createMockVoice());
+      const song = { id: "1" } as Song;
+
+      queue.addToQueue(song);
+
+      expect(queue.songs).toContain(song);
+      expect(mockDisTube.queues.schedulePreload).toHaveBeenCalledWith(queue);
+    });
+
+    it("pause cancels the pending preload timer", async () => {
+      const queue = new Queue(mockDisTube, createMockVoice());
+      queue._preloadTimeout = setTimeout(() => {}, 1000);
+
+      await queue.pause();
+
+      expect(mockDisTube.queues.schedulePreload).not.toHaveBeenCalled();
+      expect(queue._preloadTimeout).toBeUndefined();
+      expect(queue.paused).toBe(true);
+    });
+
+    it("resume re-schedules the preload", async () => {
+      const queue = new Queue(mockDisTube, createMockVoice());
+      queue.paused = true;
+
+      await queue.resume();
+
+      expect(mockDisTube.queues.schedulePreload).toHaveBeenCalledWith(queue);
+    });
+
+    it("shuffle clears the preload and re-schedules", async () => {
+      const queue = new Queue(mockDisTube, createMockVoice());
+      const kill = vi.fn();
+      queue._preloadedStream = { kill } as any;
+      queue._preloadedSong = { id: "1" } as Song;
+      queue.songs = [{ id: "playing" } as Song, { id: "1" } as Song, { id: "2" } as Song];
+
+      await queue.shuffle();
+
+      expect(kill).toHaveBeenCalled();
+      expect(queue._preloadedSong).toBeUndefined();
+      expect(mockDisTube.queues.schedulePreload).toHaveBeenCalledWith(queue);
+    });
+  });
 });

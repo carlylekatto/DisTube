@@ -1,6 +1,7 @@
 import type { GuildTextBasedChannel, Snowflake } from "discord.js";
 import { DEFAULT_VOLUME } from "../constant";
 import { DisTubeBase } from "../core/DisTubeBase";
+import type { DisTubeStream } from "../core/DisTubeStream";
 import type { DisTubeVoice } from "../core/DisTubeVoice";
 import { FilterManager } from "../core/manager/FilterManager";
 import type { DisTube } from "../DisTube";
@@ -82,6 +83,48 @@ export class Queue extends DisTubeBase {
    * @internal
    */
   _listeners?: DisTubeVoiceEvents;
+  /**
+   * Preload timer
+   * @internal
+   */
+  _preloadTimeout?: NodeJS.Timeout;
+  /**
+   * Preloaded song
+   * @internal
+   */
+  _preloadedSong?: Song;
+  /**
+   * Preloaded stream
+   * @internal
+   */
+  _preloadedStream?: DisTubeStream;
+  /**
+   * In-flight preload task
+   * @internal
+   */
+  _preloading?: Promise<void>;
+  /**
+   * Bumped whenever the preloaded state is invalidated, so an in-flight
+   * preload task can detect that its result is no longer needed.
+   * @internal
+   */
+  _preloadGeneration = 0;
+  /**
+   * Clear any preloaded song and cancel pending preload timer.
+   * @internal
+   */
+  _clearPreload() {
+    this._preloadGeneration++;
+    if (this._preloadTimeout) {
+      clearTimeout(this._preloadTimeout);
+      this._preloadTimeout = undefined;
+    }
+    if (this._preloadedStream) {
+      this._preloadedStream.kill();
+      this._preloadedStream = undefined;
+    }
+    this._preloadedSong = undefined;
+  }
   /**
    * Create a queue for the guild
    * @param distube     - DisTube
@@ -226,6 +269,7 @@ export class Queue extends DisTubeBase {
     } else {
       this.songs.splice(position, 0, song);
     }
+    this.queues?.schedulePreload?.(this);
     return this;
   }
   /**
@@ -243,6 +287,9 @@ export class Queue extends DisTubeBase {
     try {
       if (this.paused) throw new DisTubeError("PAUSED");
       this.paused = true;
+      // A paused queue cannot know when the preloaded stream is still valid:
+      // drop it and let resume() re-schedule a fresh preload.
+      this._clearPreload();
       this.voice.pause();
       this.emit(Events.PAUSE_SONG, this, this.songs[0]);
       return this;
@@ -266,6 +313,7 @@ export class Queue extends DisTubeBase {
       this.paused = false;
       this.voice.unpause();
       this.emit(Events.RESUME_SONG, this, this.songs[0]);
+      this.queues?.schedulePreload?.(this);
       return this;
     } finally {
       this._taskQueue.resolve();
@@ -335,12 +383,14 @@ export class Queue extends DisTubeBase {
     try {
       const playing = this.songs.shift();
       if (playing === undefined) return this;
+      this._clearPreload();
       for (let i = this.songs.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [this.songs[i], this.songs[j]] = [this.songs[j], this.songs[i]];
       }
       this.songs.unshift(playing);
       this.emit(Events.SHUFFLE_QUEUE, this, this.songs);
+      this.queues?.schedulePreload?.(this);
       return this;
     } finally {
       this._taskQueue.resolve();
@@ -385,6 +435,7 @@ export class Queue extends DisTubeBase {
         const skipped = this.previousSongs.splice(position);
         this.songs.unshift(...skipped);
       }
+      this._clearPreload();
       this.#stop();
       return this.songs[0];
     } finally {
@@ -423,6 +474,7 @@ export class Queue extends DisTubeBase {
     try {
       if (typeof time !== "number") throw new DisTubeError("INVALID_TYPE", "number", time, "time");
       if (Number.isNaN(time) || time < 0) throw new DisTubeError("NUMBER_COMPARE", "time", "bigger or equal to", 0);
+      this._clearPreload();
       this._beginTime = time;
       await this.play(false);
       this.emit(Events.SEEK_SONG, this, this.songs[0], time);
@@ -496,6 +548,7 @@ export class Queue extends DisTubeBase {
    * @returns Nothing
    */
   remove() {
+    this._clearPreload();
     this.paused = true;
     this.stopped = true;
     this.songs = [];

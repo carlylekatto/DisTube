@@ -1,8 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DisTubeError, DisTubeStream, Events, Queue, QueueManager, type Song } from "@";
 
 vi.mock("@/core/DisTubeStream", () => ({
-  DisTubeStream: vi.fn(() => ({ on: vi.fn() })),
+  DisTubeStream: vi.fn(function (this: any) {
+    return { on: vi.fn(), kill: vi.fn() };
+  }),
   checkFFmpeg: vi.fn(),
 }));
 
@@ -344,6 +346,218 @@ describe("QueueManager", () => {
       queue._listeners!.channelChange(oldChannel, newChannel);
 
       expect(mockDisTube.emit).toHaveBeenCalledWith(Events.VOICE_CHANNEL_CHANGE, queue, oldChannel, newChannel);
+    });
+  });
+
+  describe("preload", () => {
+    const createPreloadMocks = (optionOverrides = {}) => {
+      const mockDisTube = createMockDisTube({
+        options: {
+          emitNewSongOnly: false,
+          savePreviousSongs: true,
+          preload: { enabled: true, threshold: 15 },
+          ffmpeg: { path: "ffmpeg", args: { global: {}, input: {}, output: {} } },
+          ...optionOverrides,
+        },
+      });
+      const queueManager = new QueueManager(mockDisTube);
+      const queue = new Queue(mockDisTube, createMockVoice());
+      const current: Song = {
+        id: "1",
+        duration: 100,
+        stream: { playFromSource: true, url: "https://example.com/1" },
+      } as Song;
+      const next: Song = { id: "2", stream: { playFromSource: true, url: "https://example.com/2" } } as Song;
+      queue.songs = [current, next];
+      return { mockDisTube, queueManager, queue, current, next };
+    };
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.clearAllMocks();
+    });
+
+    describe("schedulePreload", () => {
+      it("does nothing when preload is disabled", () => {
+        const { queueManager, queue } = createPreloadMocks({ preload: false });
+        const spy = vi.spyOn(queueManager, "preloadNextSong");
+
+        queueManager.schedulePreload(queue);
+
+        expect(spy).not.toHaveBeenCalled();
+        expect(queue._preloadTimeout).toBeUndefined();
+      });
+
+      it("does nothing when there is no next song", () => {
+        const { queueManager, queue, next } = createPreloadMocks();
+        queue.songs = [queue.songs[0]];
+        const spy = vi.spyOn(queueManager, "preloadNextSong");
+
+        queueManager.schedulePreload(queue);
+
+        expect(queue.songs).not.toContain(next);
+        expect(spy).not.toHaveBeenCalled();
+        expect(queue._preloadTimeout).toBeUndefined();
+      });
+
+      it("does nothing when the next song is already preloaded", () => {
+        const { queueManager, queue, next } = createPreloadMocks();
+        queue._preloadedSong = next;
+        queue._preloadedStream = { on: vi.fn() } as any;
+        const spy = vi.spyOn(queueManager, "preloadNextSong");
+
+        queueManager.schedulePreload(queue);
+
+        expect(spy).not.toHaveBeenCalled();
+        expect(queue._preloadTimeout).toBeUndefined();
+      });
+
+      it("preloads immediately when the remaining time is within the threshold", () => {
+        const { queueManager, queue, current } = createPreloadMocks();
+        current.duration = 10;
+        const spy = vi.spyOn(queueManager, "preloadNextSong");
+
+        queueManager.schedulePreload(queue);
+
+        expect(spy).toHaveBeenCalledWith(queue);
+        expect(queue._preloadTimeout).toBeUndefined();
+      });
+
+      it("preloads immediately when the current song has no duration (live stream)", () => {
+        const { queueManager, queue, current } = createPreloadMocks();
+        current.duration = 0;
+        const spy = vi.spyOn(queueManager, "preloadNextSong");
+
+        queueManager.schedulePreload(queue);
+
+        expect(spy).toHaveBeenCalledWith(queue);
+      });
+
+      it("schedules preloading when enough time remains in the current song", async () => {
+        const { queueManager, queue } = createPreloadMocks();
+        (queue.voice as any).playbackTime = 10;
+        const spy = vi.spyOn(queueManager, "preloadNextSong");
+
+        queueManager.schedulePreload(queue);
+
+        // remaining = 90, threshold = 15 => fires after 75s
+        expect(queue._preloadTimeout).toBeDefined();
+        vi.advanceTimersByTime(74_999);
+        expect(spy).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1);
+        expect(spy).toHaveBeenCalledWith(queue);
+        expect(queue._preloadTimeout).toBeUndefined();
+      });
+
+      it("clears the previous timer when scheduled again", () => {
+        const { queueManager, queue } = createPreloadMocks();
+        (queue.voice as any).playbackTime = 10;
+        const clearSpy = vi.spyOn(global, "clearTimeout");
+
+        queueManager.schedulePreload(queue);
+        const firstTimeout = queue._preloadTimeout;
+        queueManager.schedulePreload(queue);
+
+        expect(firstTimeout).toBeDefined();
+        expect(clearSpy).toHaveBeenCalled();
+        expect(queue._preloadTimeout).toBeDefined();
+        expect(queue._preloadTimeout).not.toBe(firstTimeout);
+      });
+    });
+
+    describe("preloadNextSong", () => {
+      it("does nothing when preload is disabled", async () => {
+        const { mockDisTube, queueManager, queue } = createPreloadMocks({ preload: false });
+
+        await queueManager.preloadNextSong(queue);
+
+        expect(mockDisTube.emit).not.toHaveBeenCalledWith(Events.PRELOAD_SONG, queue, expect.anything());
+      });
+
+      it("stores the preloaded stream and emits events on success", async () => {
+        const { mockDisTube, queueManager, queue, next } = createPreloadMocks();
+
+        await queueManager.preloadNextSong(queue);
+
+        expect(mockDisTube.emit).toHaveBeenCalledWith(Events.PRELOAD_SONG, queue, next);
+        expect(mockDisTube.emit).toHaveBeenCalledWith(Events.PRELOADED_SONG, queue, next);
+        expect(queue._preloadedSong).toBe(next);
+        expect(queue._preloadedStream).toBeDefined();
+      });
+
+      it("does not replay an already preloaded song", async () => {
+        const { mockDisTube, queueManager, queue, next } = createPreloadMocks();
+        queue._preloadedSong = next;
+        queue._preloadedStream = { on: vi.fn(), kill: vi.fn() } as any;
+
+        await queueManager.preloadNextSong(queue);
+
+        expect(mockDisTube.handler.attachStreamInfo).not.toHaveBeenCalled();
+        expect(mockDisTube.emit).not.toHaveBeenCalledWith(Events.PRELOAD_SONG, queue, next);
+      });
+
+      it("emits PRELOAD_ERROR when resolving the stream fails", async () => {
+        const { mockDisTube, queueManager, queue, next } = createPreloadMocks();
+        mockDisTube.handler.attachStreamInfo.mockRejectedValue(new Error("resolve failed"));
+
+        await queueManager.preloadNextSong(queue);
+
+        expect(mockDisTube.emit).toHaveBeenCalledWith(Events.PRELOAD_ERROR, queue, next, expect.any(Error));
+        expect(queue._preloadedSong).toBeUndefined();
+        expect(queue._preloadedStream).toBeUndefined();
+      });
+
+      it("discards the preload when the queue changed while resolving the stream", async () => {
+        const { mockDisTube, queueManager, queue } = createPreloadMocks();
+        mockDisTube.handler.attachStreamInfo.mockImplementation(async () => {
+          queue.songs[1] = { id: "replaced" } as Song;
+        });
+
+        await queueManager.preloadNextSong(queue);
+
+        expect(DisTubeStream).not.toHaveBeenCalled();
+        expect(queue._preloadedSong).toBeUndefined();
+      });
+
+      it("kills the created stream when the queue changed after the stream was built", async () => {
+        const { queueManager, queue } = createPreloadMocks();
+        const kill = vi.fn();
+        (DisTubeStream as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(function (this: any) {
+          // Stop the queue at the moment the stream is created, simulating a
+          // state change between the two on-line checks in preloadNextSong.
+          queue.stopped = true;
+          return { on: vi.fn(), kill };
+        });
+
+        await queueManager.preloadNextSong(queue);
+
+        expect(DisTubeStream).toHaveBeenCalled();
+        expect(kill).toHaveBeenCalled();
+        expect(queue._preloadedStream).toBeUndefined();
+      });
+    });
+
+    describe("playSong integration", () => {
+      it("uses the preloaded stream instead of resolving and creating a new one", async () => {
+        const { mockDisTube, queueManager, queue, current } = createPreloadMocks();
+        queue.songs = [current]; // Avoid scheduling a new preload as a side effect
+        const preloadedStream = { on: vi.fn(), kill: vi.fn() };
+        queue._preloadedSong = current;
+        queue._preloadedStream = preloadedStream as any;
+
+        await queueManager.playSong(queue);
+
+        expect(mockDisTube.handler.attachStreamInfo).not.toHaveBeenCalled();
+        expect(DisTubeStream).not.toHaveBeenCalled();
+        expect(queue.voice.play).toHaveBeenCalledWith(preloadedStream);
+        expect(queue._preloadedSong).toBeUndefined();
+        expect(queue._preloadedStream).toBeUndefined();
+        expect(mockDisTube.emit).toHaveBeenCalledWith(Events.PLAY_SONG, queue, current);
+      });
     });
   });
 });

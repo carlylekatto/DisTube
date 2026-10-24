@@ -33,6 +33,7 @@ export class FilterManager extends BaseManager<Filter> {
   }
 
   #apply(oldFilters: string[]) {
+    this.queue._clearPreload?.();
     const newFilters = this.names;
     const changed = oldFilters.length !== newFilters.length || !oldFilters.every(f => newFilters.includes(f));
     if (changed) {

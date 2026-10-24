@@ -1,4 +1,4 @@
-import { defaultOptions } from "../constant";
+import { DEFAULT_PRELOAD_THRESHOLD_SECS, defaultOptions } from "../constant";
 import { DisTubeError } from "../struct/DisTubeError";
 import type {
   DisTubeOptions,
@@ -6,6 +6,7 @@ import type {
   FFmpegArgs,
   FFmpegOptions,
   Filters,
+  PreloadOptions,
   UnhandledErrorBehavior,
 } from "../type";
 import { checkInvalidKey } from "../util";
@@ -75,6 +76,11 @@ export class Options {
    */
   stuckThreshold: number;
   /**
+   * The preload options of the DisTube instance.
+   * @default { enabled: false, threshold: 15 }
+   */
+  preload: PreloadOptions;
+  /**
    * The FFmpeg options of the DisTube instance.
    */
   ffmpeg: FFmpegOptions;
@@ -99,9 +105,34 @@ export class Options {
     this.joinNewVoiceChannel = opts.joinNewVoiceChannel;
     this.unhandledError = opts.unhandledError;
     this.stuckThreshold = opts.stuckThreshold;
+    this.preload = this.#preloadOption(opts.preload);
     this.ffmpeg = this.#ffmpegOption(options);
     checkInvalidKey(opts, this, "DisTubeOptions");
     this.#validateOptions();
+  }
+
+  #preloadOption(value: DisTubeOptions["preload"]): PreloadOptions {
+    if (value === undefined || value === false) {
+      return { enabled: false, threshold: DEFAULT_PRELOAD_THRESHOLD_SECS };
+    }
+    if (value === true) {
+      return { enabled: true, threshold: DEFAULT_PRELOAD_THRESHOLD_SECS };
+    }
+    if (typeof value !== "object" || Array.isArray(value)) {
+      throw new DisTubeError("INVALID_TYPE", ["boolean", "object"], value, "DisTubeOptions.preload");
+    }
+    checkInvalidKey(value, ["enabled", "threshold"], "DisTubeOptions.preload");
+    const { enabled, threshold } = value;
+    if (enabled !== undefined && typeof enabled !== "boolean") {
+      throw new DisTubeError("INVALID_TYPE", "boolean", enabled, "DisTubeOptions.preload.enabled");
+    }
+    if (threshold !== undefined && (typeof threshold !== "number" || Number.isNaN(threshold) || threshold < 0)) {
+      throw new DisTubeError("INVALID_TYPE", "number", threshold, "DisTubeOptions.preload.threshold");
+    }
+    return {
+      enabled: enabled ?? false,
+      threshold: threshold ?? DEFAULT_PRELOAD_THRESHOLD_SECS,
+    };
   }
 
   #validateOptions(options = this) {
@@ -115,7 +146,7 @@ export class Options {
     ]);
     const numberOptions = new Set(["stuckThreshold"]);
     const stringOptions = new Set(["unhandledError"]);
-    const objectOptions = new Set(["customFilters", "ffmpeg"]);
+    const objectOptions = new Set(["customFilters", "ffmpeg", "preload"]);
     const optionalOptions = new Set(["customFilters"]);
 
     for (const [key, value] of Object.entries(options)) {
@@ -138,6 +169,8 @@ export class Options {
           throw new DisTubeError("INVALID_TYPE", UNHANDLED_ERROR_BEHAVIORS, value, `DisTubeOptions.${key}`);
         }
       } else if (objectOptions.has(key)) {
+        // `preload` has already been fully validated and normalized in
+        // #preloadOption, so a plain object check is enough here.
         if (typeof value !== "object" || Array.isArray(value)) {
           throw new DisTubeError("INVALID_TYPE", "object", value, `DisTubeOptions.${key}`);
         }
