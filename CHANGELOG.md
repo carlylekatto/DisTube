@@ -5,6 +5,32 @@ All the notable changes of DisTube are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.1.0]
+
+This version adds the events that the playback and the queue were missing. A bot can now react to
+what happens to a song without polling the queue: the events are emitted after the change, with the
+queue and the data of the change.
+
+A queue can also prepare its next song in advance. When the preloading is enabled, DisTube resolves
+the stream of the next song and creates its stream before the current song ends, so the transition
+between two songs does not wait for the resolution any more.
+
+### Added
+
+- The playback events: `pauseSong`, `resumeSong`, `seekSong`, `setVolume`, `skipSong` and
+  `shuffleQueue`. They carry the queue and the data of the change: the paused or resumed song, the
+  seek position, the new and the old volumes, the skipped song or the shuffled songs.
+- The `changeFilter` event, with the new and the old filters. It is emitted only when the filters
+  actually change.
+- The `voiceChannelChange` event, emitted when the bot is moved to another voice channel, with the
+  old and the new channels.
+- The `preload` option prepares the next song of a queue in advance. It accepts a boolean, or an
+  object with an `enabled` field and a `threshold` field: the number of seconds remaining in the
+  current song before the preparation starts, 15 by default. The default is disabled.
+- The preload events: `preloadSong` when the preparation starts, `preloadedSong` when the next song
+  is ready, and `preloadError` when it fails. A failed preload never interrupts the playback: the
+  song is resolved again when it starts.
+
 ## [6.0.2]
 
 The documentation of the library, of the wiki and of the website no longer names the services or the
@@ -82,6 +108,7 @@ The plugin API got a new shape, and the API that was deprecated in v5.2 is gone.
   `isActive` getter.
 - The `InfoExtratorPlugin` and `PlayableExtratorPlugin` aliases, which had a typo in their name.
 
+[6.1.0]: https://github.com/carlylekatto/DisTube/releases/tag/6.1.0
 [6.0.2]: https://github.com/carlylekatto/DisTube/releases/tag/6.0.2
 [6.0.1]: https://github.com/carlylekatto/DisTube/releases/tag/6.0.1
 [6.0.0]: https://github.com/carlylekatto/DisTube/releases/tag/6.0.0
