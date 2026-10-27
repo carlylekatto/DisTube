@@ -164,6 +164,21 @@ export class DisTubeStream extends TypedEmitter<{
       .flat();
   }
 
+  /**
+   * Translate a `file:` URL into a local filesystem path that FFmpeg accepts.
+   *
+   * `file:///C:/x` loses its drive-letter leading slash on Windows (`C:/x`),
+   * UNC shares keep their `//host` prefix, POSIX paths stay untouched, and
+   * other protocols return `undefined`.
+   */
+  #localPath(url: string): string | undefined {
+    const fileUrl = new URL(url);
+    if (fileUrl.protocol !== "file:") return undefined;
+    const pathname = decodeURIComponent(fileUrl.pathname);
+    if (fileUrl.hostname) return `//${fileUrl.hostname}${pathname}`;
+    return /^\/[A-Za-z]:\//.test(pathname) ? pathname.slice(1) : pathname;
+  }
+
   #singleInputArgs(url: string, ffmpeg: FFmpegOptions, seek?: number): string[] {
     const opts: FFmpegArg = {
       reconnect: 1,
@@ -182,12 +197,12 @@ export class DisTubeStream extends TypedEmitter<{
 
     if (typeof seek === "number" && seek > 0) opts.ss = seek.toString();
 
-    const fileUrl = new URL(url);
-    if (fileUrl.protocol === "file:") {
+    const localPath = this.#localPath(url);
+    if (localPath !== undefined) {
       opts.reconnect = null;
       opts.reconnect_streamed = null;
       opts.reconnect_delay_max = null;
-      opts.i = fileUrl.hostname + fileUrl.pathname;
+      opts.i = localPath;
     }
 
     return [...this.#flattenArgs(opts), "pipe:1"];
@@ -242,12 +257,21 @@ export class DisTubeStream extends TypedEmitter<{
       i: secondaryUrl,
     };
 
-    const fileUrl = new URL(url);
-    if (fileUrl.protocol === "file:") {
-      for (const key of ["reconnect", "reconnect_streamed", "reconnect_delay_max"] as const) {
-        primaryOpts[key] = null;
-      }
-      primaryOpts.i = fileUrl.hostname + fileUrl.pathname;
+    // File inputs need the reconnect flags dropped and a plain local path
+    // (also for the fading-in input, not only the primary one).
+    const primaryLocal = this.#localPath(url);
+    if (primaryLocal !== undefined) {
+      primaryOpts.reconnect = null;
+      primaryOpts.reconnect_streamed = null;
+      primaryOpts.reconnect_delay_max = null;
+      primaryOpts.i = primaryLocal;
+    }
+    const secondaryLocal = this.#localPath(secondaryUrl);
+    if (secondaryLocal !== undefined) {
+      secondaryOpts.reconnect = null;
+      secondaryOpts.reconnect_streamed = null;
+      secondaryOpts.reconnect_delay_max = null;
+      secondaryOpts.i = secondaryLocal;
     }
 
     const normalize = `aresample=${AUDIO_SAMPLE_RATE},aformat=sample_fmts=s16:channel_layouts=stereo`;
