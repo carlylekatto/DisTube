@@ -5,7 +5,7 @@ import { Transform } from "node:stream";
 import type { AudioResource } from "@discordjs/voice";
 import { createAudioResource, StreamType } from "@discordjs/voice";
 import { TypedEmitter } from "tiny-typed-emitter";
-import { AUDIO_CHANNELS, AUDIO_SAMPLE_RATE } from "../constant";
+import { AUDIO_CHANNELS, AUDIO_SAMPLE_RATE, DEFAULT_CROSSFADE_CURVE } from "../constant";
 import type { DisTube } from "../DisTube";
 import { DisTubeError } from "../struct/DisTubeError";
 import type { Awaitable, FFmpegArg, FFmpegOptions } from "../type";
@@ -24,6 +24,44 @@ export interface StreamOptions {
    * @default 0
    */
   seek?: number;
+  /**
+   * Crossfade transition options.
+   *
+   * When set, the stream mixes the primary URL (the song that is fading out,
+   * seeked to its final `duration` seconds) and the secondary URL (the song
+   * that is fading in) with an FFmpeg `acrossfade` filter graph, so the two
+   * songs crossfade seamlessly in a single FFmpeg process.
+   */
+  crossfade?: CrossfadeStreamOptions;
+}
+
+/**
+ * Options describing a crossfade transition stream
+ */
+export interface CrossfadeStreamOptions {
+  /**
+   * The fade duration in seconds.
+   */
+  duration: number;
+  /**
+   * The initial seek of the first (fading out) input, in seconds. It must be
+   * the position where the fade window begins (`song duration - duration`).
+   */
+  primarySeek: number;
+  /**
+   * The stream URL of the second (fading in) input.
+   */
+  secondaryUrl: string;
+  /**
+   * The FFmpeg `acrossfade` fade curve of the first (fading out) input.
+   * @default "qsin"
+   */
+  outCurve?: string;
+  /**
+   * The FFmpeg `acrossfade` fade curve of the second (fading in) input.
+   * @default "qsin"
+   */
+  inCurve?: string;
 }
 
 let checked = process.env.NODE_ENV === "test";
@@ -94,8 +132,39 @@ export class DisTubeStream extends TypedEmitter<{
    */
   constructor(url: string, options: StreamOptions) {
     super();
-    const { ffmpeg, seek } = options;
+    const { ffmpeg, seek, crossfade } = options;
     this.seekTime = typeof seek === "number" && seek > 0 ? seek : 0;
+    this.#ffmpegPath = ffmpeg.path;
+    this.#opts = crossfade ? this.#crossfadeArgs(url, ffmpeg, crossfade) : this.#singleInputArgs(url, ffmpeg, seek);
+
+    this.stream = new VolumeTransformer();
+    this.stream
+      .on("close", () => this.kill())
+      .on("error", err => {
+        this.debug(`[stream] error: ${err.message}`);
+        this.emit("error", err);
+      })
+      .on("finish", () => this.debug("[stream] log: stream finished"));
+
+    this.audioResource = createAudioResource(this.stream, {
+      inputType: StreamType.Raw,
+      inlineVolume: false,
+    });
+  }
+
+  #flattenArgs(args: FFmpegArg): string[] {
+    return Object.entries(args)
+      .flatMap(([key, value]) =>
+        Array.isArray(value)
+          ? value.filter(Boolean).map(v => [`-${key}`, String(v)])
+          : value == null || value === false
+            ? []
+            : [value === true ? `-${key}` : [`-${key}`, String(value)]],
+      )
+      .flat();
+  }
+
+  #singleInputArgs(url: string, ffmpeg: FFmpegOptions, seek?: number): string[] {
     const opts: FFmpegArg = {
       reconnect: 1,
       reconnect_streamed: 1,
@@ -121,33 +190,90 @@ export class DisTubeStream extends TypedEmitter<{
       opts.i = fileUrl.hostname + fileUrl.pathname;
     }
 
-    this.#ffmpegPath = ffmpeg.path;
-    this.#opts = [
-      ...Object.entries(opts)
-        .flatMap(([key, value]) =>
-          Array.isArray(value)
-            ? value.filter(Boolean).map(v => [`-${key}`, String(v)])
-            : value == null || value === false
-              ? []
-              : [value === true ? `-${key}` : [`-${key}`, String(value)]],
-        )
-        .flat(),
+    return [...this.#flattenArgs(opts), "pipe:1"];
+  }
+
+  /**
+   * Build the arguments of a crossfade transition stream: a single FFmpeg
+   * process with two inputs (the fading out song seeked to its final
+   * `duration` seconds and the fading in song from its beginning) mixed by an
+   * `acrossfade` filter graph.
+   *
+   * Both inputs are normalized (48kHz stereo s16) before the fade, and the
+   * queue's `af` filter chain, when present, is folded into the filter complex
+   * after the fade (FFmpeg cannot combine `-af` with `-filter_complex`).
+   */
+  #crossfadeArgs(url: string, ffmpeg: FFmpegOptions, crossfade: CrossfadeStreamOptions): string[] {
+    const {
+      duration,
+      primarySeek,
+      secondaryUrl,
+      outCurve = DEFAULT_CROSSFADE_CURVE,
+      inCurve = DEFAULT_CROSSFADE_CURVE,
+    } = crossfade;
+    // The `af` output argument cannot coexist with filter_complex: move it to
+    // the end of the filter graph instead.
+    const outputArgs: FFmpegArg = { ...ffmpeg.args.output };
+    const extraFilters =
+      typeof outputArgs.af === "string"
+        ? outputArgs.af
+        : Array.isArray(outputArgs.af)
+          ? outputArgs.af.filter(Boolean).join(",")
+          : undefined;
+    delete outputArgs.af;
+
+    const primaryOpts: FFmpegArg = {
+      reconnect: 1,
+      reconnect_streamed: 1,
+      reconnect_delay_max: 5,
+      analyzeduration: 0,
+      hide_banner: true,
+      ...ffmpeg.args.global,
+      ...ffmpeg.args.input,
+      ss: typeof primarySeek === "number" && primarySeek > 0 ? primarySeek.toString() : null,
+      i: url,
+    };
+    const secondaryOpts: FFmpegArg = {
+      reconnect: 1,
+      reconnect_streamed: 1,
+      reconnect_delay_max: 5,
+      analyzeduration: 0,
+      ...ffmpeg.args.input,
+      i: secondaryUrl,
+    };
+
+    const fileUrl = new URL(url);
+    if (fileUrl.protocol === "file:") {
+      for (const key of ["reconnect", "reconnect_streamed", "reconnect_delay_max"] as const) {
+        primaryOpts[key] = null;
+      }
+      primaryOpts.i = fileUrl.hostname + fileUrl.pathname;
+    }
+
+    const normalize = `aresample=${AUDIO_SAMPLE_RATE},aformat=sample_fmts=s16:channel_layouts=stereo`;
+    const fade = `[a0][a1]acrossfade=d=${duration}:c1=${outCurve}:c2=${inCurve}[xf]`;
+    const graph = [
+      `[0:a]${normalize}[a0]`,
+      `[1:a]${normalize}[a1]`,
+      fade,
+      ...(extraFilters ? [`[xf]${extraFilters}[aout]`] : []),
+    ].join(";");
+
+    const outputOpts: FFmpegArg = {
+      ar: AUDIO_SAMPLE_RATE,
+      ac: AUDIO_CHANNELS,
+      ...outputArgs,
+      filter_complex: graph,
+      map: extraFilters ? "[aout]" : "[xf]",
+      f: "s16le",
+    };
+
+    return [
+      ...this.#flattenArgs(primaryOpts),
+      ...this.#flattenArgs(secondaryOpts),
+      ...this.#flattenArgs(outputOpts),
       "pipe:1",
     ];
-
-    this.stream = new VolumeTransformer();
-    this.stream
-      .on("close", () => this.kill())
-      .on("error", err => {
-        this.debug(`[stream] error: ${err.message}`);
-        this.emit("error", err);
-      })
-      .on("finish", () => this.debug("[stream] log: stream finished"));
-
-    this.audioResource = createAudioResource(this.stream, {
-      inputType: StreamType.Raw,
-      inlineVolume: false,
-    });
   }
 
   /**

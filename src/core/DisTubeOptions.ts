@@ -1,6 +1,14 @@
-import { DEFAULT_PRELOAD_THRESHOLD_SECS, defaultOptions } from "../constant";
+import {
+  DEFAULT_CROSSFADE_CURVE,
+  DEFAULT_CROSSFADE_DURATION_SECS,
+  DEFAULT_CROSSFADE_WARMUP_SECS,
+  DEFAULT_PRELOAD_THRESHOLD_SECS,
+  defaultOptions,
+  MAX_CROSSFADE_DURATION_SECS,
+} from "../constant";
 import { DisTubeError } from "../struct/DisTubeError";
 import type {
+  CrossfadeOptions,
   DisTubeOptions,
   DisTubePlugin,
   FFmpegArgs,
@@ -81,6 +89,11 @@ export class Options {
    */
   preload: PreloadOptions;
   /**
+   * The crossfade options of the DisTube instance.
+   * @default { duration: 0, curve: "qsin", warmup: 5 }
+   */
+  crossfade: CrossfadeOptions;
+  /**
    * The FFmpeg options of the DisTube instance.
    */
   ffmpeg: FFmpegOptions;
@@ -106,6 +119,7 @@ export class Options {
     this.unhandledError = opts.unhandledError;
     this.stuckThreshold = opts.stuckThreshold;
     this.preload = this.#preloadOption(opts.preload);
+    this.crossfade = this.#crossfadeOption(opts.crossfade);
     this.ffmpeg = this.#ffmpegOption(options);
     checkInvalidKey(opts, this, "DisTubeOptions");
     this.#validateOptions();
@@ -135,6 +149,48 @@ export class Options {
     };
   }
 
+  #crossfadeOption(value: DisTubeOptions["crossfade"]): CrossfadeOptions {
+    if (value === undefined) {
+      return {
+        duration: DEFAULT_CROSSFADE_DURATION_SECS,
+        curve: DEFAULT_CROSSFADE_CURVE,
+        warmup: DEFAULT_CROSSFADE_WARMUP_SECS,
+      };
+    }
+    if (typeof value !== "object" || Array.isArray(value)) {
+      throw new DisTubeError("INVALID_TYPE", "object", value, "DisTubeOptions.crossfade");
+    }
+    checkInvalidKey(value, ["duration", "curve", "warmup"], "DisTubeOptions.crossfade");
+    const { duration, curve, warmup } = value;
+    if (duration !== undefined && (typeof duration !== "number" || Number.isNaN(duration) || duration < 0)) {
+      throw new DisTubeError(
+        "INVALID_TYPE",
+        `number >= 0 (max ${MAX_CROSSFADE_DURATION_SECS})`,
+        duration,
+        "DisTubeOptions.crossfade.duration",
+      );
+    }
+    if (duration !== undefined && duration > MAX_CROSSFADE_DURATION_SECS) {
+      throw new DisTubeError(
+        "NUMBER_COMPARE",
+        "Crossfade duration",
+        "smaller or equal to",
+        MAX_CROSSFADE_DURATION_SECS,
+      );
+    }
+    if (curve !== undefined && (typeof curve !== "string" || !curve)) {
+      throw new DisTubeError("INVALID_TYPE", "string", curve, "DisTubeOptions.crossfade.curve");
+    }
+    if (warmup !== undefined && (typeof warmup !== "number" || Number.isNaN(warmup) || warmup < 0)) {
+      throw new DisTubeError("INVALID_TYPE", "number >= 0", warmup, "DisTubeOptions.crossfade.warmup");
+    }
+    return {
+      duration: duration ?? DEFAULT_CROSSFADE_DURATION_SECS,
+      curve: curve ?? DEFAULT_CROSSFADE_CURVE,
+      warmup: warmup ?? DEFAULT_CROSSFADE_WARMUP_SECS,
+    };
+  }
+
   #validateOptions(options = this) {
     const booleanOptions = new Set([
       "emitNewSongOnly",
@@ -146,7 +202,7 @@ export class Options {
     ]);
     const numberOptions = new Set(["stuckThreshold"]);
     const stringOptions = new Set(["unhandledError"]);
-    const objectOptions = new Set(["customFilters", "ffmpeg", "preload"]);
+    const objectOptions = new Set(["customFilters", "ffmpeg", "preload", "crossfade"]);
     const optionalOptions = new Set(["customFilters"]);
 
     for (const [key, value] of Object.entries(options)) {

@@ -21,10 +21,35 @@ test("Default DisTubeOptions", () => {
       enabled: false,
       threshold: 15,
     },
+    crossfade: {
+      duration: 0,
+      curve: "qsin",
+      warmup: 5,
+    },
     savePreviousSongs: true,
     stuckThreshold: 10000,
     unhandledError: "log",
   });
+});
+
+test("crossfade option defaults and validation", () => {
+  expect(new Options({}).crossfade).toEqual({ duration: 0, curve: "qsin", warmup: 5 });
+  expect(new Options({ crossfade: { duration: 6 } }).crossfade).toEqual({
+    duration: 6,
+    curve: "qsin",
+    warmup: 5,
+  });
+  expect(new Options({ crossfade: { curve: "tri" } }).crossfade).toEqual({
+    duration: 0,
+    curve: "tri",
+    warmup: 5,
+  });
+  expect(() => new Options(<any>{ crossfade: { duration: "6" } })).toThrow();
+  expect(() => new Options(<any>{ crossfade: { duration: -1 } })).toThrow();
+  expect(() => new Options(<any>{ crossfade: { duration: 13 } })).toThrow();
+  expect(() => new Options(<any>{ crossfade: { curve: "" } })).toThrow();
+  expect(() => new Options(<any>{ crossfade: { warmup: -1 } })).toThrow();
+  expect(() => new Options(<any>{ crossfade: 6 })).toThrow();
 });
 
 test("preload option accepts a boolean or an object", () => {

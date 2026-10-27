@@ -76,6 +76,33 @@ export const defaultFilters: Filters = {
 export const DEFAULT_PRELOAD_THRESHOLD_SECS = 15;
 
 /**
+ * Default crossfade duration in seconds for a {@link Queue} (0 disables the crossfade).
+ */
+export const DEFAULT_CROSSFADE_DURATION_SECS = 0;
+/**
+ * Maximum crossfade duration in seconds a {@link Queue} may request.
+ */
+export const MAX_CROSSFADE_DURATION_SECS = 12;
+/**
+ * Default FFmpeg `acrossfade` fade curve of the crossfade transition.
+ *
+ * `qsin` is an equal-power curve: the two songs mix without the -3dB dip of a
+ * linear (triangular) curve.
+ */
+export const DEFAULT_CROSSFADE_CURVE = "qsin";
+/**
+ * Default number of seconds before the fade window when the merged crossfade
+ * transition stream is spawned to warm up its buffers.
+ */
+export const DEFAULT_CROSSFADE_WARMUP_SECS = 5;
+/**
+ * How far (in seconds) the playback position may drift from the expected
+ * crossfade boundary before the transition is aborted and the regular
+ * song-switch takes over.
+ */
+export const CROSSFADE_DRIFT_TOLERANCE_SECS = 0.75;
+
+/**
  * The default options of a {@link DisTube} instance.
  *
  * They are overridden by the options given to the constructor of
@@ -92,4 +119,9 @@ export const defaultOptions = {
   unhandledError: "log",
   stuckThreshold: STUCK_THRESHOLD_MS,
   preload: false,
+  crossfade: {
+    duration: DEFAULT_CROSSFADE_DURATION_SECS,
+    curve: DEFAULT_CROSSFADE_CURVE,
+    warmup: DEFAULT_CROSSFADE_WARMUP_SECS,
+  },
 } satisfies DisTubeOptions;

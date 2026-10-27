@@ -345,6 +345,30 @@ export type PreloadOptions = {
 };
 
 /**
+ * The validated {@link DisTubeOptions.crossfade} options of a {@link DisTube}
+ * instance.
+ */
+export type CrossfadeOptions = {
+  /**
+   * The default crossfade duration (in seconds) applied to new queues. `0`
+   * disables the crossfade. A {@link Queue} can override it at runtime through
+   * its `crossfade` property.
+   */
+  duration: number;
+  /**
+   * The FFmpeg `acrossfade` fade curve applied to both sides of the transition.
+   * @default "qsin" (equal-power)
+   */
+  curve: string;
+  /**
+   * How long (in seconds) before the fade window begins the merged transition
+   * stream is spawned, so its buffers are warm and the fade starts on time.
+   * @default 5
+   */
+  warmup: number;
+};
+
+/**
  * DisTube options
  */
 export type DisTubeOptions = {
@@ -432,6 +456,39 @@ export type DisTubeOptions = {
          */
         threshold?: number;
       };
+  /**
+   * Crossfade the end of the current song with the beginning of the next one,
+   * instead of a hard switch between two streams.
+   *
+   * The transition is a single FFmpeg process that mixes both songs with an
+   * `acrossfade` filter, so the fade is seamless (no gaps, no extra decode
+   * round-trips). Because the fade length must be prepared in advance, the
+   * next song's stream is resolved even when preloading is disabled.
+   *
+   * Can be an object to configure it:
+   * - `duration`: the default crossfade duration in seconds for new queues
+   *   (@default 0). Each {@link Queue} can override it at runtime with its
+   *   `crossfade` property, which is what bots typically bind to a guild
+   *   setting.
+   * - `curve`: the FFmpeg `acrossfade` fade curve (@default "qsin")
+   * - `warmup`: seconds before the fade window when the transition stream is
+   *   spawned to warm up its buffers (@default 5)
+   * @default { duration: 0, curve: "qsin", warmup: 5 }
+   */
+  crossfade?: {
+    /**
+     * The default crossfade duration (in seconds) for new queues (0 disables).
+     */
+    duration?: number;
+    /**
+     * The FFmpeg `acrossfade` fade curve applied to both songs.
+     */
+    curve?: string;
+    /**
+     * Seconds before the fade window when the transition stream is spawned.
+     */
+    warmup?: number;
+  };
   /**
    * FFmpeg options
    */

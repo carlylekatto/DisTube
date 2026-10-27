@@ -1,6 +1,15 @@
 import type { GuildTextBasedChannel, VoiceBasedChannel } from "discord.js";
 import type { Song } from "../..";
-import { checkFFmpeg, DisTubeError, DisTubeStream, Events, objectKeys, Queue, RepeatMode } from "../..";
+import {
+  CROSSFADE_DRIFT_TOLERANCE_SECS,
+  checkFFmpeg,
+  DisTubeError,
+  DisTubeStream,
+  Events,
+  objectKeys,
+  Queue,
+  RepeatMode,
+} from "../..";
 import { GuildIdManager } from "./GuildIdManager";
 
 /**
@@ -191,6 +200,7 @@ export class QueueManager extends GuildIdManager<Queue> {
       await queue.voice.play(dtStream);
       if (emitPlaySong) this.emit(Events.PLAY_SONG, queue, song);
       this.schedulePreload(queue);
+      this.scheduleCrossfade(queue);
     } catch (e: unknown) {
       const error = e instanceof Error ? e : new Error(String(e));
       if (options?.keepSongOnError) {
@@ -312,6 +322,188 @@ export class QueueManager extends GuildIdManager<Queue> {
       const error = e instanceof Error ? e : new Error(String(e));
       this.debug(`[${queue.id}] Preload failed for ${nextSong}: ${error.message}`);
       this.emit(Events.PRELOAD_ERROR, queue, nextSong, error);
+    }
+  }
+
+  /**
+   * Schedule the crossfade into the next song: a single FFmpeg process mixes
+   * the current song (seeked to its final fade window) with the next song, and
+   * replaces the playback stream exactly when the fade window begins.
+   *
+   * Canceled automatically whenever the preloaded state is invalidated
+   * (pause, seek, stop...), as both schedulers share the same generation.
+   * @param queue - The guild queue
+   */
+  scheduleCrossfade(queue: Queue) {
+    queue._crossfadeCancel();
+    if (queue.stopped || queue.paused) return;
+    const currentSong = queue.songs[0];
+    if (!currentSong) return;
+    const songDuration = currentSong.duration ?? 0;
+    // Live songs have an unknown duration: they cannot be crossfaded.
+    if (!songDuration || !Number.isFinite(songDuration)) return;
+    const fade = Math.min(Number(queue.crossfade) || 0, songDuration);
+    if (fade <= 0) return;
+    const nextSong = queue.repeatMode === RepeatMode.SONG ? currentSong : queue.songs[1];
+    if (!nextSong) return;
+    const currentTime = queue.currentTime;
+    if (!Number.isFinite(currentTime)) return;
+    const remaining = songDuration - currentTime;
+    if (remaining <= fade) return;
+    const delayMs = Math.max(0, (remaining - fade - this.options.crossfade.warmup) * 1000);
+    this.debug(
+      `[${queue.id}] Scheduling crossfade (${fade}s fade) in ${(delayMs / 1000).toFixed(1)}s: ${currentSong} -> ${nextSong}`,
+    );
+    queue._crossfadeTimeout = setTimeout(() => {
+      queue._crossfadeTimeout = undefined;
+      void this.#crossfadeWarmupTask(queue);
+    }, delayMs);
+    queue._crossfadeTimeout.unref?.();
+  }
+
+  /**
+   * Spawn the merged transition stream ahead of the fade window so both of
+   * its inputs are buffered when the fade must start, then arm the boundary
+   * timer that swaps the playback stream.
+   */
+  async #crossfadeWarmupTask(queue: Queue) {
+    let transitionStream: DisTubeStream | undefined;
+    try {
+      if (queue.stopped || queue.paused) return;
+      const song = queue.songs[0];
+      const generation = queue._preloadGeneration;
+      const repeatSong = queue.repeatMode === RepeatMode.SONG;
+      const nextSong = repeatSong ? song : queue.songs[1];
+      if (!song || !nextSong) return;
+      const songDuration = song.duration ?? 0;
+      const fade = Math.min(Number(queue.crossfade) || 0, songDuration);
+      if (fade <= 0) return;
+      const remaining = songDuration - queue.currentTime;
+      if (remaining <= fade) return;
+      if (!repeatSong) {
+        // Resolve the next song's stream url if the preload has not done it
+        // yet: the transition stream needs it before the fade starts.
+        if (this.options.preload.enabled) await this.preloadNextSong(queue);
+        else await this.handler.attachStreamInfo(nextSong);
+      }
+      if (queue.stopped || queue.paused || queue.songs[0] !== song || generation !== queue._preloadGeneration) return;
+      if (repeatSong ? queue.songs[0] !== song : queue.songs[1] !== nextSong) return;
+
+      const primary = song.stream.playFromSource ? song : song.stream.song;
+      const secondary = repeatSong ? primary : nextSong.stream.playFromSource ? nextSong : nextSong.stream.song;
+      if (!primary?.stream.playFromSource || !primary.stream.url) return;
+      if (!secondary?.stream.playFromSource || !secondary.stream.url) return;
+
+      this.debug(`[${queue.id}] Warming up crossfade stream: ${song} -> ${nextSong}`);
+      transitionStream = new DisTubeStream(primary.stream.url, {
+        ffmpeg: {
+          path: this.options.ffmpeg.path,
+          args: {
+            global: { ...queue.ffmpegArgs.global },
+            input: { ...queue.ffmpegArgs.input },
+            output: { ...queue.ffmpegArgs.output, ...queue.filters.ffmpegArgs },
+          },
+        },
+        crossfade: {
+          duration: fade,
+          primarySeek: Math.max(0, songDuration - fade),
+          secondaryUrl: secondary.stream.url,
+          inCurve: this.options.crossfade.curve,
+          outCurve: this.options.crossfade.curve,
+        },
+      });
+      transitionStream.on("debug", data => this.emit(Events.FFMPEG_DEBUG, `[${queue.id}] [crossfade] ${data}`));
+
+      if (queue.stopped || queue.paused || queue.songs[0] !== song || generation !== queue._preloadGeneration) {
+        transitionStream.kill();
+        return;
+      }
+      queue._crossfadeWarmup = transitionStream;
+      // Pre-spawn: until the boundary, both inputs buffer into the stream so
+      // the fade can begin without waiting for any network round-trip.
+      transitionStream.spawn();
+
+      const boundaryMs = Math.max(0, (remaining - fade) * 1000);
+      queue._crossfadeTimeout = setTimeout(() => {
+        queue._crossfadeTimeout = undefined;
+        void this.#crossfadeSwapTask(queue, transitionStream!);
+      }, boundaryMs);
+      queue._crossfadeTimeout.unref?.();
+    } catch (e: unknown) {
+      // Crossfade is best-effort: fall back to the regular song transition.
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      this.debug(`[${queue.id}] Crossfade warmup failed, using the regular transition: ${errorMessage}`);
+      if (transitionStream) transitionStream.kill();
+    }
+  }
+
+  /**
+   * Swap the playing stream for the merged transition stream and update the
+   * queue as if the current song had just finished.
+   */
+  async #crossfadeSwapTask(queue: Queue, transitionStream: DisTubeStream) {
+    const abort = () => {
+      if (queue._crossfadeWarmup === transitionStream) queue._crossfadeWarmup = undefined;
+      transitionStream.kill();
+    };
+    try {
+      if (queue.stopped || queue.paused || queue._crossfadeWarmup !== transitionStream) return abort();
+      const song = queue.songs[0];
+      if (!song) return abort();
+      const songDuration = song.duration ?? 0;
+      const fade = Math.min(Number(queue.crossfade) || 0, songDuration);
+      if (fade <= 0) return abort();
+      // The playback position must be inside the fade window: on drift, fall
+      // back to the regular transition instead of miscalibrated audio.
+      const drift = queue.currentTime - (songDuration - fade);
+      if (Math.abs(drift) > CROSSFADE_DRIFT_TOLERANCE_SECS) {
+        this.debug(`[${queue.id}] Crossfade aborted: playback drifted ${drift.toFixed(2)}s from the fade boundary`);
+        return abort();
+      }
+
+      await queue._taskQueue.queuing();
+      try {
+        if (queue.stopped || queue.paused || queue.songs[0] !== song || queue._crossfadeWarmup !== transitionStream) {
+          return abort();
+        }
+        this.debug(`[${queue.id}] Starting crossfade: ${song} -> ${queue.songs.length > 1 ? queue.songs[1] : song}`);
+        await queue.voice.play(transitionStream);
+        queue._crossfadeWarmup = undefined;
+
+        // Update the queue exactly like a regular song finish.
+        this.emit(Events.FINISH_SONG, queue, song);
+        if (queue.repeatMode === RepeatMode.QUEUE) queue.songs.push(song);
+        if (queue.repeatMode !== RepeatMode.SONG) {
+          const prev = queue.songs.shift() as Song;
+          if (this.options.savePreviousSongs) queue.previousSongs.push(prev);
+          else queue.previousSongs.push({ id: prev.id } as Song);
+        } else {
+          // Repeat-song fades into a fresh playback of the same song: the
+          // plain preloaded stream (if any) is replaced by the transition.
+        }
+        if (song !== queue.songs[0]) {
+          const playedSong = song.stream.playFromSource ? song : song.stream.song;
+          if (playedSong?.stream.playFromSource) delete playedSong.stream.url;
+        }
+        // The transition stream replaces whatever plain stream was preloaded
+        // for the next song: its url is still resolved, so kill quietly.
+        if (queue._preloadedStream) {
+          queue._preloadedStream.kill();
+          queue._preloadedStream = undefined;
+          queue._preloadedSong = undefined;
+        }
+        this.emit(Events.PLAY_SONG, queue, queue.songs[0]);
+        this.schedulePreload(queue);
+        this.scheduleCrossfade(queue);
+      } finally {
+        queue._taskQueue.resolve();
+      }
+    } catch (e: unknown) {
+      abort();
+      // Keep the fallback predictable: the old song keeps playing and the
+      // regular transition takes over when it ends.
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      this.debug(`[${queue.id}] Crossfade swap failed, using the regular transition: ${errorMessage}`);
     }
   }
 }

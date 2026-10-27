@@ -258,7 +258,9 @@ export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
     if (this.audioPlayer.state.status !== AudioPlayerStatus.Paused) {
       this.audioPlayer.play(dtStream.audioResource);
       this.stream?.kill();
-      dtStream.spawn();
+      // A crossfade transition stream is already spawned (it warmed up its
+      // buffers before the fade window began): only swap the resource.
+      if (!dtStream.process) dtStream.spawn();
     } else if (!this.pausingStream) {
       this.pausingStream = this.stream;
     }

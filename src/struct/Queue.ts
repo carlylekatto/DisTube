@@ -1,5 +1,5 @@
 import type { GuildTextBasedChannel, Snowflake } from "discord.js";
-import { DEFAULT_VOLUME } from "../constant";
+import { DEFAULT_VOLUME, MAX_CROSSFADE_DURATION_SECS } from "../constant";
 import { DisTubeBase } from "../core/DisTubeBase";
 import type { DisTubeStream } from "../core/DisTubeStream";
 import type { DisTubeVoice } from "../core/DisTubeVoice";
@@ -109,11 +109,24 @@ export class Queue extends DisTubeBase {
    * @internal
    */
   _preloadGeneration = 0;
+  #crossfade: number;
+  /**
+   * Crossfade boundary timer
+   * @internal
+   */
+  _crossfadeTimeout?: NodeJS.Timeout;
+  /**
+   * The merged transition stream that is warming up before the fade window
+   * starts
+   * @internal
+   */
+  _crossfadeWarmup?: DisTubeStream;
   /**
    * Clear any preloaded song and cancel pending preload timer.
    * @internal
    */
   _clearPreload() {
+    this._crossfadeCancel();
     this._preloadGeneration++;
     if (this._preloadTimeout) {
       clearTimeout(this._preloadTimeout);
@@ -124,6 +137,20 @@ export class Queue extends DisTubeBase {
       this._preloadedStream = undefined;
     }
     this._preloadedSong = undefined;
+  }
+  /**
+   * Cancel a pending crossfade and kill its warming-up transition stream.
+   * @internal
+   */
+  _crossfadeCancel() {
+    if (this._crossfadeTimeout) {
+      clearTimeout(this._crossfadeTimeout);
+      this._crossfadeTimeout = undefined;
+    }
+    if (this._crossfadeWarmup) {
+      this._crossfadeWarmup.kill();
+      this._crossfadeWarmup = undefined;
+    }
   }
   /**
    * Create a queue for the guild
@@ -153,6 +180,8 @@ export class Queue extends DisTubeBase {
       input: { ...this.options.ffmpeg.args.input },
       output: { ...this.options.ffmpeg.args.output },
     };
+    // Defensive: mocked/embedded options may not carry the crossfade block.
+    this.#crossfade = Number(this.options.crossfade?.duration) || 0;
     this.#initialized = true;
   }
   #addToPreviousSongs(songs: Song | Song[]) {
@@ -210,6 +239,28 @@ export class Queue extends DisTubeBase {
    */
   get currentTime() {
     return this.voice.playbackTime;
+  }
+  /**
+   * The crossfade duration (in seconds) between this song and the next one.
+   *
+   * `0` (the default) disables the crossfade. Changing it takes effect for the
+   * next transition; call {@link Queue#scheduleCrossfade} to re-arm the
+   * transition for the currently playing song immediately.
+   * @throws {@link DisTubeError} When the value is not a number between `0`
+   * and the maximum crossfade duration
+   */
+  get crossfade(): number {
+    return this.#crossfade;
+  }
+  set crossfade(value: number) {
+    if (typeof value !== "number" || Number.isNaN(value)) {
+      throw new DisTubeError("INVALID_TYPE", "number", value, "Queue.crossfade");
+    }
+    if (value < 0) throw new DisTubeError("NUMBER_COMPARE", "Crossfade", "bigger or equal to", 0);
+    if (value > MAX_CROSSFADE_DURATION_SECS) {
+      throw new DisTubeError("NUMBER_COMPARE", "Crossfade", "smaller or equal to", MAX_CROSSFADE_DURATION_SECS);
+    }
+    this.#crossfade = value;
   }
   /**
    * Formatted {@link Queue#currentTime} string.
@@ -314,6 +365,7 @@ export class Queue extends DisTubeBase {
       this.voice.unpause();
       this.emit(Events.RESUME_SONG, this, this.songs[0]);
       this.queues?.schedulePreload?.(this);
+      this.queues?.scheduleCrossfade?.(this);
       return this;
     } finally {
       this._taskQueue.resolve();
@@ -574,6 +626,17 @@ export class Queue extends DisTubeBase {
   play(emitPlaySong = true) {
     if (this.stopped) throw new DisTubeError("QUEUE_STOPPED");
     return this.queues.playSong(this, emitPlaySong);
+  }
+  /**
+   * Re-arm the crossfade into the next song for the currently playing one.
+   *
+   * Useful after changing {@link Queue#crossfade} while a song is playing: the
+   * fade may still fit into the remaining time. This is called automatically
+   * after every song switch.
+   * @returns Nothing
+   */
+  scheduleCrossfade() {
+    this.queues.scheduleCrossfade(this);
   }
   /**
    * Restart the current stream with the current FFmpeg arguments, keeping the
