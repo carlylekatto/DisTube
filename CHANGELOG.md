@@ -5,6 +5,31 @@ All the notable changes of DisTube are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.2.0]
+
+This version introduces audio crossfade between consecutive songs. Instead of a hard switch between
+two streams, a queue can seamlessly mix the fading out song with the fading in song using a single
+transition stream powered by FFmpeg's `acrossfade` filter.
+
+The transition stream is pre-spawned before the fade window begins so that both inputs are buffered
+ahead of time, ensuring the crossfade starts on schedule without network stalls or decoding delays.
+
+### Added
+
+- The `crossfade` option on DisTube, accepting an object with:
+  - `duration`: the default crossfade duration in seconds for new queues (disabled by default, `0`).
+  - `curve`: the FFmpeg `acrossfade` fade curve (default `"qsin"`, equal-power).
+  - `warmup`: the number of seconds before the fade window when the transition stream is spawned
+    to warm up its buffers (default `5` seconds).
+- `Queue#crossfade` property (`0` to `12` seconds) to configure or toggle crossfade per queue at runtime.
+- `Queue#scheduleCrossfade()` to re-arm the crossfade transition immediately if `Queue#crossfade` is modified mid-song.
+- `CrossfadeOptions` and `CrossfadeStreamOptions` exported types.
+
+### Fixed
+
+- Resolved file URLs with Windows drive letters (`file:///C:/...`) and UNC network shares properly
+  when decoding local audio files with FFmpeg.
+
 ## [6.1.0]
 
 This version adds the events that the playback and the queue were missing. A bot can now react to
