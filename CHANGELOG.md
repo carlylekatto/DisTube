@@ -5,6 +5,20 @@ All the notable changes of DisTube are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.2.1]
+
+This patch hardens the crossfade against slow sources. A transition stream that has not produced any
+audio when the fade window opens no longer takes over the playback: the queue aborts the crossfade
+and keeps the regular transition, so the song never sits in the buffering state waiting for FFmpeg.
+
+### Fixed
+
+- Never swap in a transition stream with no audio yet. A warmed-up crossfade stream that stayed
+  silent at the fade boundary used to leave the player buffering until FFmpeg caught up, and the
+  stuck-track watchdog then skipped the song on slow sources.
+- Arm the fade boundary from the playback position that is read after the preload await, so a slow
+  preload cannot push the swap past the drift tolerance.
+
 ## [6.2.0]
 
 This version introduces audio crossfade between consecutive songs. Instead of a hard switch between
