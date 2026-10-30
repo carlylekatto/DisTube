@@ -126,6 +126,17 @@ export class DisTubeStream extends TypedEmitter<{
    */
   readonly seekTime: number;
   /**
+   * Whether FFmpeg has already produced audio that is waiting to be read.
+   *
+   * The stream is spawned ahead of the playback (crossfade warmup) and the
+   * pipe backs up once its buffers are full, so this is `true` as soon as the
+   * first frame exists. A stream that is still `false` at playback time would
+   * leave the audio player buffering until FFmpeg catches up.
+   */
+  get hasBufferedAudio(): boolean {
+    return this.stream.readableLength > 0;
+  }
+  /**
    * Create a DisTubeStream to play with {@link DisTubeVoice}
    * @param url     - Stream URL
    * @param options - Stream options

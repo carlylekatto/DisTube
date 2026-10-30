@@ -423,7 +423,7 @@ export class QueueManager extends GuildIdManager<Queue> {
       // the fade can begin without waiting for any network round-trip.
       transitionStream.spawn();
 
-      const boundaryMs = Math.max(0, (remaining - fade) * 1000);
+      const boundaryMs = Math.max(0, (songDuration - queue.currentTime - fade) * 1000);
       queue._crossfadeTimeout = setTimeout(() => {
         queue._crossfadeTimeout = undefined;
         void this.#crossfadeSwapTask(queue, transitionStream!);
@@ -464,6 +464,14 @@ export class QueueManager extends GuildIdManager<Queue> {
       await queue._taskQueue.queuing();
       try {
         if (queue.stopped || queue.paused || queue.songs[0] !== song || queue._crossfadeWarmup !== transitionStream) {
+          return abort();
+        }
+        // Swapping in a stream that has not produced its first frame yet would
+        // leave the player buffering until FFmpeg catches up, and the stuck
+        // watchdog would skip the song on slow sources. Falling back to the
+        // regular transition keeps the playback alive instead.
+        if (!transitionStream.hasBufferedAudio) {
+          this.debug(`[${queue.id}] Crossfade aborted: the transition stream is not ready`);
           return abort();
         }
         this.debug(`[${queue.id}] Starting crossfade: ${song} -> ${queue.songs.length > 1 ? queue.songs[1] : song}`);

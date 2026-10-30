@@ -10,6 +10,8 @@ import { Events, Queue, QueueManager, type Song } from "@";
 class FakeStream extends EventEmitter {
   readonly url: string;
   readonly options: { crossfade?: Record<string, unknown> };
+  /** Mirrors `DisTubeStream#hasBufferedAudio`: a warmed-up stream is ready. */
+  hasBufferedAudio = true;
   #killed = false;
   kill = vi.fn(() => {
     this.#killed = true;
@@ -150,6 +152,30 @@ describe("QueueManager crossfade (playback simulation)", () => {
       expect(queue._preloadedSong).toBeUndefined();
       // The transition stream was NOT spawned again by voice.play
       expect(transition.spawn).toHaveBeenCalledTimes(1);
+    });
+
+    it("falls back to the regular transition when the warmed-up stream has no audio yet", async () => {
+      const { queueManager, queue, voice } = createSimulatedQueue();
+      queue.crossfade = 6;
+
+      await queueManager.playSong(queue);
+      await vi.advanceTimersByTimeAsync(10_000);
+      const transition = asFake(queue._crossfadeWarmup);
+      expect(transition.spawn).toHaveBeenCalled();
+
+      // Slow source: FFmpeg has not emitted a single frame by the boundary.
+      // Swapping it in would leave the player buffering (and the stuck
+      // watchdog would skip the song), so the crossfade must step aside.
+      transition.hasBufferedAudio = false;
+      (queue.voice as any).playbackTime = 94;
+      await vi.advanceTimersByTimeAsync(15_000);
+
+      expect(voice.play).not.toHaveBeenCalledWith(transition);
+      expect(transition.killed).toBe(true);
+      expect(queue._crossfadeWarmup).toBeUndefined();
+      // The queue is untouched: the regular transition still owns the song
+      expect(queue.previousSongs).toHaveLength(0);
+      expect(queue.songs[0].id).toBe("song-1");
     });
 
     it("aborts the crossfade when the playback drifts from the fade boundary", async () => {
