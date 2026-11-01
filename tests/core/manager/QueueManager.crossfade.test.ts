@@ -300,5 +300,63 @@ describe("QueueManager crossfade (playback simulation)", () => {
       expect(queue.songs[0]).toBeDefined();
       expect(streams).toHaveLength(1); // only song1's playback stream
     });
+
+    it("lets the adapter replace the fading-out song's input", async () => {
+      const { queueManager, queue } = createSimulatedQueue({
+        crossfade: {
+          duration: 0,
+          curve: "qsin",
+          warmup: 5,
+          preparePrimaryInput: (url: string, { seek }: { seek: number }) => {
+            expect(url).toBe("https://example.com/song-1");
+            expect(seek).toBe(94);
+            return {
+              // A playlist trimmed to start from 90s: the fade boundary sits
+              // 4s into the replacement input.
+              url: "file:///tmp/tail.m3u8",
+              seek: 4,
+              inputArgs: { protocol_whitelist: "file,http,https,tcp,tls,crypto" },
+            };
+          },
+        },
+      });
+      queue.crossfade = 6;
+
+      await queueManager.playSong(queue);
+      await vi.advanceTimersByTimeAsync(10_000);
+      const transition = asFake(queue._crossfadeWarmup);
+      expect(transition).toBeDefined();
+      expect(transition.url).toBe("file:///tmp/tail.m3u8");
+      expect(transition.options.crossfade).toMatchObject({
+        primarySeek: 4,
+        secondaryUrl: "https://example.com/song-2",
+      });
+      expect((transition.options as any).crossfade.primaryInputArgs).toEqual({
+        protocol_whitelist: "file,http,https,tcp,tls,crypto",
+      });
+    });
+
+    it("falls back to the original url when the adapter fails", async () => {
+      const { mockDisTube, queueManager, queue } = createSimulatedQueue({
+        crossfade: {
+          duration: 0,
+          curve: "qsin",
+          warmup: 5,
+          preparePrimaryInput: () => {
+            throw new Error("adapter unavailable");
+          },
+        },
+      });
+      queue.crossfade = 6;
+
+      await queueManager.playSong(queue);
+      await vi.advanceTimersByTimeAsync(10_000);
+      const transition = asFake(queue._crossfadeWarmup);
+      // Best-effort: the plain url is used and the crossfade still happens
+      expect(transition).toBeDefined();
+      expect(transition.url).toBe("https://example.com/song-1");
+      expect(transition.options.crossfade).toMatchObject({ primarySeek: 94 });
+      expect(mockDisTube.debug).toHaveBeenCalledWith(expect.stringContaining("primary input preparation failed"));
+    });
   });
 });

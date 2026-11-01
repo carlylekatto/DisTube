@@ -121,6 +121,65 @@ describe("DisTubeStream crossfade", () => {
     expect(graph).toContain("acrossfade=d=6:c1=esin:c2=tri");
   });
 
+  it("replaces the primary input options with primaryInputArgs", async () => {
+    const [, args] = await spawnArgs({
+      ...ffmpegOptions,
+      crossfade: {
+        ...crossfadeOptions,
+        primarySeek: 3,
+        primaryInputArgs: {
+          analyzeduration: 0,
+          protocol_whitelist: "file,http,https,tcp,tls,crypto",
+        },
+      },
+    });
+    // The primary input is the local playlist with the adapter's options
+    const i1 = args.indexOf("-i");
+    expect(args[i1 + 1]).toBe("https://example.com/current");
+    // No streaming-specific options on the replaced input
+    expect(args.slice(0, i1).indexOf("-reconnect")).toBe(-1);
+    expect(args.indexOf("-protocol_whitelist")).toBeGreaterThan(-1);
+    expect(args.indexOf("-protocol_whitelist")).toBeLessThan(i1);
+    expect(args[args.indexOf("-protocol_whitelist") + 1]).toBe("file,http,https,tcp,tls,crypto");
+    // The seek still applies to the first input only
+    const ss = args.indexOf("-ss");
+    expect(ss).toBeGreaterThan(-1);
+    expect(ss).toBeLessThan(i1);
+    expect(args[ss + 1]).toBe("3");
+    // The secondary input keeps the default streaming options
+    const i2 = args.indexOf("-i", i1 + 1);
+    expect(args.indexOf("-reconnect")).toBeGreaterThan(-1);
+    expect(args.indexOf("-reconnect")).toBeLessThan(i2);
+  });
+
+  it("converts a file url primary input into a plain local path", async () => {
+    const { spawn } = await import("node:child_process");
+    const stream = new DisTubeStream("file:///tmp/coz-xf-tail.m3u8", {
+      ...ffmpegOptions,
+      crossfade: {
+        duration: 6,
+        primarySeek: 3,
+        secondaryUrl: "https://example.com/next",
+        primaryInputArgs: { analyzeduration: 0, protocol_whitelist: "file,http,https,tcp,tls,crypto" },
+      },
+    });
+    stream.spawn();
+    const call = vi.mocked(spawn).mock.calls.at(-1)!;
+    const args = call[1] as string[];
+    const i1 = args.indexOf("-i");
+    // file:// urls are translated so that FFmpeg accepts them everywhere
+    expect(args[i1 + 1]).toBe("/tmp/coz-xf-tail.m3u8");
+    // No streaming-specific option on the replaced (file) input
+    expect(args.slice(0, i1).indexOf("-reconnect")).toBe(-1);
+    const i2 = args.indexOf("-i", i1 + 1);
+    // The secondary input keeps the default streaming options
+    expect(args.indexOf("-reconnect")).toBeGreaterThan(i1);
+    expect(args.indexOf("-reconnect")).toBeLessThan(i2);
+    expect(args.indexOf("-protocol_whitelist")).toBeGreaterThan(-1);
+    expect(args.indexOf("-protocol_whitelist")).toBeLessThan(i1);
+    expect(args[args.indexOf("-protocol_whitelist") + 1]).toBe("file,http,https,tcp,tls,crypto");
+  });
+
   it("does not use a seek time after the swap", async () => {
     const stream = new DisTubeStream("https://example.com/current", { ...ffmpegOptions, crossfade: crossfadeOptions });
     // The -ss of the transition belongs to the first input: the playback time

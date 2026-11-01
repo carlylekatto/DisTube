@@ -366,7 +366,51 @@ export type CrossfadeOptions = {
    * @default 5
    */
   warmup: number;
+  /**
+   * Prepare the fading-out song's playback input for the crossfade FFmpeg
+   * process. It is invoked right before the transition stream is spawned,
+   * with the song's stream url and the position (in seconds, counted from the
+   * beginning of the song) where the fade window begins.
+   *
+   * Streaming inputs that cannot fast-seek (for example HLS playlists) force
+   * FFmpeg to re-download the whole stream and discard everything before the
+   * seek position, which can miss the swap window on slow sources. The
+   * adapter can return a replacement input that starts near the boundary —
+   * a local playlist trimmed to the fade position, for example — along with
+   * the seek offset inside it and its own FFmpeg input options. Return `null`
+   * or `undefined` to use the url as-is.
+   */
+  preparePrimaryInput?: PrepareCrossfadeInput;
 };
+
+/**
+ * The replacement input returned by {@link CrossfadeOptions.preparePrimaryInput}.
+ */
+export type PreparedCrossfadeInput = {
+  /**
+   * The replacement input url or path, for example a local playlist file
+   * trimmed to start at the fade boundary.
+   */
+  url: string;
+  /**
+   * The initial seek of the replacement input, in seconds relative to it.
+   * When omitted, the input is assumed to start exactly at the fade boundary.
+   */
+  seek?: number;
+  /**
+   * FFmpeg input options of the replacement input. They replace the default
+   * input options, which are tuned for http(s) streaming urls.
+   */
+  inputArgs?: FFmpegArg;
+};
+
+/**
+ * The {@link CrossfadeOptions.preparePrimaryInput} adapter type.
+ */
+export type PrepareCrossfadeInput = (
+  url: string,
+  boundary: { seek: number; song: Song },
+) => Awaitable<PreparedCrossfadeInput | null | undefined>;
 
 /**
  * DisTube options
@@ -473,6 +517,9 @@ export type DisTubeOptions = {
    * - `curve`: the FFmpeg `acrossfade` fade curve (@default "qsin")
    * - `warmup`: seconds before the fade window when the transition stream is
    *   spawned to warm up its buffers (@default 5)
+   * - `preparePrimaryInput`: an optional adapter preparing the fading-out
+   *   song's FFmpeg input before the transition stream is spawned. Useful for
+   *   streaming inputs that cannot fast-seek ({@link CrossfadeOptions.preparePrimaryInput}).
    * @default { duration: 0, curve: "qsin", warmup: 5 }
    */
   crossfade?: {
@@ -488,6 +535,11 @@ export type DisTubeOptions = {
      * Seconds before the fade window when the transition stream is spawned.
      */
     warmup?: number;
+    /**
+     * Optional adapter preparing the fading-out song's FFmpeg input
+     * ({@link CrossfadeOptions.preparePrimaryInput}).
+     */
+    preparePrimaryInput?: PrepareCrossfadeInput;
   };
   /**
    * FFmpeg options

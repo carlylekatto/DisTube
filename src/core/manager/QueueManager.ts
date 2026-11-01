@@ -1,5 +1,5 @@
 import type { GuildTextBasedChannel, VoiceBasedChannel } from "discord.js";
-import type { Song } from "../..";
+import type { FFmpegArg, Song } from "../..";
 import {
   CROSSFADE_DRIFT_TOLERANCE_SECS,
   checkFFmpeg,
@@ -395,7 +395,29 @@ export class QueueManager extends GuildIdManager<Queue> {
       if (!secondary?.stream.playFromSource || !secondary.stream.url) return;
 
       this.debug(`[${queue.id}] Warming up crossfade stream: ${song} -> ${nextSong}`);
-      transitionStream = new DisTubeStream(primary.stream.url, {
+      const boundarySeek = Math.max(0, songDuration - fade);
+      let primaryUrl: string = primary.stream.url;
+      let primarySeek = boundarySeek;
+      let primaryInputArgs: FFmpegArg | undefined;
+      const prepare = this.options.crossfade.preparePrimaryInput;
+      if (prepare) {
+        try {
+          const prepared = await prepare(primary.stream.url, { seek: boundarySeek, song });
+          if (prepared?.url) {
+            primaryUrl = prepared.url;
+            if (typeof prepared.seek === "number" && Number.isFinite(prepared.seek) && prepared.seek >= 0) {
+              primarySeek = prepared.seek;
+            }
+            primaryInputArgs = prepared.inputArgs;
+            this.debug(`[${queue.id}] Crossfade primary input prepared by the adapter`);
+          }
+        } catch (e: unknown) {
+          // Best-effort: fall back to the original url when the adapter fails.
+          const errorMessage = e instanceof Error ? e.message : String(e);
+          this.debug(`[${queue.id}] Crossfade primary input preparation failed: ${errorMessage}`);
+        }
+      }
+      transitionStream = new DisTubeStream(primaryUrl, {
         ffmpeg: {
           path: this.options.ffmpeg.path,
           args: {
@@ -406,10 +428,11 @@ export class QueueManager extends GuildIdManager<Queue> {
         },
         crossfade: {
           duration: fade,
-          primarySeek: Math.max(0, songDuration - fade),
+          primarySeek,
           secondaryUrl: secondary.stream.url,
           inCurve: this.options.crossfade.curve,
           outCurve: this.options.crossfade.curve,
+          primaryInputArgs,
         },
       });
       transitionStream.on("debug", data => this.emit(Events.FFMPEG_DEBUG, `[${queue.id}] [crossfade] ${data}`));

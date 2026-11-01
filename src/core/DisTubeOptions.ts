@@ -160,8 +160,8 @@ export class Options {
     if (typeof value !== "object" || Array.isArray(value)) {
       throw new DisTubeError("INVALID_TYPE", "object", value, "DisTubeOptions.crossfade");
     }
-    checkInvalidKey(value, ["duration", "curve", "warmup"], "DisTubeOptions.crossfade");
-    const { duration, curve, warmup } = value;
+    checkInvalidKey(value, ["duration", "curve", "warmup", "preparePrimaryInput"], "DisTubeOptions.crossfade");
+    const { duration, curve, warmup, preparePrimaryInput } = value;
     if (duration !== undefined && (typeof duration !== "number" || Number.isNaN(duration) || duration < 0)) {
       throw new DisTubeError(
         "INVALID_TYPE",
@@ -184,10 +184,19 @@ export class Options {
     if (warmup !== undefined && (typeof warmup !== "number" || Number.isNaN(warmup) || warmup < 0)) {
       throw new DisTubeError("INVALID_TYPE", "number >= 0", warmup, "DisTubeOptions.crossfade.warmup");
     }
+    if (preparePrimaryInput !== undefined && typeof preparePrimaryInput !== "function") {
+      throw new DisTubeError(
+        "INVALID_TYPE",
+        "function",
+        preparePrimaryInput,
+        "DisTubeOptions.crossfade.preparePrimaryInput",
+      );
+    }
     return {
       duration: duration ?? DEFAULT_CROSSFADE_DURATION_SECS,
       curve: curve ?? DEFAULT_CROSSFADE_CURVE,
       warmup: warmup ?? DEFAULT_CROSSFADE_WARMUP_SECS,
+      preparePrimaryInput,
     };
   }
 

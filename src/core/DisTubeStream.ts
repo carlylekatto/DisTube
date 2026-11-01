@@ -62,6 +62,14 @@ export interface CrossfadeStreamOptions {
    * @default "qsin"
    */
   inCurve?: string;
+  /**
+   * FFmpeg input options of the first (fading out) input. When set, they
+   * replace the default input options, which are tuned for http(s) streaming
+   * urls. Use it for inputs that need different flags — a local playlist
+   * file, for example, requires the `protocol_whitelist` option and no
+   * reconnect flags.
+   */
+  primaryInputArgs?: FFmpegArg;
 }
 
 let checked = process.env.NODE_ENV === "test";
@@ -249,13 +257,15 @@ export class DisTubeStream extends TypedEmitter<{
     delete outputArgs.af;
 
     const primaryOpts: FFmpegArg = {
-      reconnect: 1,
-      reconnect_streamed: 1,
-      reconnect_delay_max: 5,
-      analyzeduration: 0,
       hide_banner: true,
       ...ffmpeg.args.global,
-      ...ffmpeg.args.input,
+      ...(crossfade.primaryInputArgs ?? {
+        reconnect: 1,
+        reconnect_streamed: 1,
+        reconnect_delay_max: 5,
+        analyzeduration: 0,
+        ...ffmpeg.args.input,
+      }),
       ss: typeof primarySeek === "number" && primarySeek > 0 ? primarySeek.toString() : null,
       i: url,
     };
