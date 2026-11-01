@@ -5,6 +5,26 @@ All the notable changes of DisTube are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.2.2]
+
+This version makes the crossfade viable on sources whose playlists cannot be fast-seeked. A new
+`crossfade.preparePrimaryInput` option rewrites the fading-out song's FFmpeg input right before the
+transition stream is spawned, so bots can replace a seek-hostile stream url with one that starts a
+few seconds before the fade boundary instead.
+
+### Added
+
+- `crossfade.preparePrimaryInput`: an optional adapter invoked with the fading-out song's stream url
+  and the fade boundary (in seconds), returning a replacement input url along with the seek offset
+  inside it and its own FFmpeg input options (which replace the default streaming-oriented ones).
+  Streaming inputs that cannot fast-seek — HLS playlists, for example — force FFmpeg to re-download
+  the whole stream and discard everything before the seek position, which can miss the swap window
+  on slow sources; the adapter lets a host trim the input down to the tail of the song beforehand.
+- `CrossfadeStreamOptions.primaryInputArgs`: FFmpeg input options that replace the default options of
+  the first (fading out) input of the transition stream.
+- Failures inside the adapter fall back to the original url, and all flows without an adapter keep
+  their previous behavior.
+
 ## [6.2.1]
 
 This patch hardens the crossfade against slow sources. A transition stream that has not produced any
