@@ -5,6 +5,21 @@ All the notable changes of DisTube are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.2.3]
+
+This version makes a dying crossfade transition stream diagnosable instead of crashing the host
+process silently.
+
+### Fixed
+
+- Attach an error listener to the warmed-up transition stream. A transition FFmpeg that died early
+  (for example on a hostile input) used to emit on an event with no listener, crashing the host
+  process with an unhandled error, before aborting the crossfade into the regular transition path.
+  The queue now clears its crossfade state on the failure.
+- Include the last FFmpeg stderr lines in the `FFMPEG_EXITED` error. An exit code alone (for example
+  `234`, which is an `EINVAL` truncated to 8 bits on POSIX) does not explain the failure; the
+  attached output names the exact FFmpeg error that killed the process.
+
 ## [6.2.2]
 
 This version makes the crossfade viable on sources whose playlists cannot be fast-seeked. A new
