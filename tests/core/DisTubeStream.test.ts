@@ -92,6 +92,23 @@ describe("DisTubeStream", () => {
       expect(stream).toBeDefined();
     });
 
+    it("attaches the ffmpeg stderr tail to the FFMPEG_EXITED error", async () => {
+      const crashed = vi.fn();
+      const stream = new DisTubeStream("http://example.com/audio.mp3", defaultOptions);
+      stream.on("error", crashed);
+      stream.spawn();
+      const process = vi.mocked((await import("node:child_process")).spawn).mock.results.at(-1)!.value as any;
+      // Feed stderr, then die: the error must explain the exit code AND the
+      // output that led to it.
+      process.stderr.on.mock.calls.at(-1)![1]("Invalid argument\nProtocol not found");
+      process.on.mock.calls.filter(([event]: any) => event === "exit").forEach(([, cb]: any) => cb(234, null));
+
+      expect(crashed).toHaveBeenCalledWith(expect.objectContaining({ errorCode: "FFMPEG_EXITED" }));
+      const error = crashed.mock.calls[0][0] as Error;
+      expect(error.message).toContain("ffmpeg exited with code 234");
+      expect(error.message).toContain("Invalid argument\nProtocol not found");
+    });
+
     it("creates audio resource with Raw stream type", async () => {
       const { createAudioResource } = await import("@discordjs/voice");
 

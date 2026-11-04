@@ -115,6 +115,8 @@ export class DisTubeStream extends TypedEmitter<{
 }> {
   #ffmpegPath: string;
   #opts: string[];
+  /** FFmpeg keeps the last stderr lines in case the process dies. */
+  #stderrLog: string[] = [];
   /**
    * The FFmpeg process that decodes the audio.
    *
@@ -341,7 +343,12 @@ export class DisTubeStream extends TypedEmitter<{
         this.debug(`[process] exit: code=${code ?? "unknown"} signal=${signal ?? "unknown"}`);
         if (!code || [0, 255].includes(code)) return;
         this.debug(`[process] error: ffmpeg exited with code ${code}`);
-        this.emit("error", new DisTubeError("FFMPEG_EXITED", code));
+        const error = new DisTubeError("FFMPEG_EXITED", code);
+        // The last stderr lines explain why FFmpeg died (input errors,
+        // missing options, protocol failures carry no exit code alone).
+        const tail = this.#stderrLog.join("\n");
+        if (tail) error.message += `\nFFmpeg stderr:\n${tail}`;
+        this.emit("error", error);
       });
 
     if (!this.process.stdout || !this.process.stderr) {
@@ -355,7 +362,11 @@ export class DisTubeStream extends TypedEmitter<{
       for (const line of lines) {
         if (/^\s*$/.test(line)) continue;
         this.debug(`[ffmpeg] log: ${line}`);
+        this.#stderrLog.push(line);
       }
+      // Keep only the most relevant tail (exit errors and the log that
+      // explains them), bounded so a chatty stream cannot grow unbounded.
+      if (this.#stderrLog.length > 20) this.#stderrLog.splice(0, this.#stderrLog.length - 20);
     });
   }
 

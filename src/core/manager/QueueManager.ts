@@ -436,6 +436,27 @@ export class QueueManager extends GuildIdManager<Queue> {
         },
       });
       transitionStream.on("debug", data => this.emit(Events.FFMPEG_DEBUG, `[${queue.id}] [crossfade] ${data}`));
+      // A transition stream whose FFmpeg process dies cannot be swapped in: a
+      // listener must consume the error or the process would crash on the
+      // unhandled "error" event. The regular transition keeps playing.
+      // A transition stream whose FFmpeg process dies cannot be swapped in: a
+      // listener must consume the error or the process would crash on the
+      // unhandled "error" event. The regular transition keeps playing.
+      const stream = transitionStream;
+      stream.on("error", e => {
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        this.debug(`[${queue.id}] Crossfade transition stream failed: ${errorMessage}`);
+        // Only the warmup state (before the swap) owns the boundary timer:
+        // after the swap the transition stream is the playing stream and the
+        // queue has begun the next cycle.
+        if (queue._crossfadeWarmup !== stream) return;
+        queue._crossfadeWarmup = undefined;
+        if (queue._crossfadeTimeout) {
+          clearTimeout(queue._crossfadeTimeout);
+          queue._crossfadeTimeout = undefined;
+        }
+        stream.kill();
+      });
 
       if (queue.stopped || queue.paused || queue.songs[0] !== song || generation !== queue._preloadGeneration) {
         transitionStream.kill();

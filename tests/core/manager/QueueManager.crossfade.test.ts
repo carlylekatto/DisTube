@@ -336,6 +336,31 @@ describe("QueueManager crossfade (playback simulation)", () => {
       });
     });
 
+    it("does not crash when the transition stream dies during the warmup", async () => {
+      const { queueManager, queue, voice } = createSimulatedQueue();
+      queue.crossfade = 6;
+
+      await queueManager.playSong(queue);
+      await vi.advanceTimersByTimeAsync(10_000);
+      const transition = asFake(queue._crossfadeWarmup);
+      expect(transition).toBeDefined();
+
+      // FFmpeg of the transition stream dies (a bad input, for example): the
+      // queue must not crash on the unhandled "error" event and keeps the
+      // regular transition.
+      transition.emit("error", new Error("ffmpeg exited with code 234"));
+      expect(queue._crossfadeWarmup).toBeUndefined();
+      expect(vi.getTimerCount()).toBe(0);
+
+      // Nothing swaps in at the (cleared) boundary
+      (queue.voice as any).playbackTime = 94;
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(voice.play).not.toHaveBeenCalledWith(transition);
+      expect(transition.killed).toBe(true);
+      expect(queue.songs[0].id).toBe("song-1");
+      expect(queue.previousSongs).toHaveLength(0);
+    });
+
     it("falls back to the original url when the adapter fails", async () => {
       const { mockDisTube, queueManager, queue } = createSimulatedQueue({
         crossfade: {
