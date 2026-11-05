@@ -10,6 +10,7 @@ import {
   Queue,
   RepeatMode,
 } from "../..";
+import { volumeToGain } from "../DisTubeVoice";
 import { GuildIdManager } from "./GuildIdManager";
 
 /**
@@ -301,6 +302,12 @@ export class QueueManager extends GuildIdManager<Queue> {
       };
 
       const dtStream = new DisTubeStream(stream.url, streamOptions);
+      // The stream is spawned as soon as it is played, but a crossfade
+      // transition stream (and this preloaded one) buffers PCM long before
+      // that. Apply the queue volume now: the volume transformer processes a
+      // chunk when it is written, so a stream that is only given its volume at
+      // playback time would play its buffered beginning at full volume.
+      dtStream.setVolume(volumeToGain(queue.volume));
       dtStream.on("debug", data => this.emit(Events.FFMPEG_DEBUG, `[${queue.id}] [preload] ${data}`));
 
       if (queue.stopped || queue.songs[1] !== nextSong || generation !== queue._preloadGeneration) {
@@ -436,20 +443,36 @@ export class QueueManager extends GuildIdManager<Queue> {
         },
       });
       transitionStream.on("debug", data => this.emit(Events.FFMPEG_DEBUG, `[${queue.id}] [crossfade] ${data}`));
+      // The transition stream warms up for tens of seconds and buffers PCM
+      // during that whole time. The volume transformer applies its gain when a
+      // chunk is written, so the volume has to be set before the stream spawns:
+      // setting it only when the stream is played leaves the buffered beginning
+      // at full volume (audible as a ~10 dB louder burst at the fade boundary).
+      transitionStream.setVolume(volumeToGain(queue.volume));
       // A transition stream whose FFmpeg process dies cannot be swapped in: a
       // listener must consume the error or the process would crash on the
-      // unhandled "error" event. The regular transition keeps playing.
-      // A transition stream whose FFmpeg process dies cannot be swapped in: a
-      // listener must consume the error or the process would crash on the
-      // unhandled "error" event. The regular transition keeps playing.
+      // unhandled "error" event.
       const stream = transitionStream;
       stream.on("error", e => {
+        const isWarmup = queue._crossfadeWarmup === stream;
+        // @discordjs/voice destroys the AudioResource pipeline of a stream when
+        // the audio player switches resources, and that teardown surfaces as a
+        // premature close on the stream's input. It is a normal teardown:
+        //   - a swapped-in transition stream belongs to the voice from then on,
+        //   - a warm-up stream whose pipeline was torn down cannot be swapped in.
+        if ((e as NodeJS.ErrnoException).code === "ERR_STREAM_PREMATURE_CLOSE") {
+          if (!isWarmup) return;
+          queue._crossfadeWarmup = undefined;
+          if (queue._crossfadeTimeout) {
+            clearTimeout(queue._crossfadeTimeout);
+            queue._crossfadeTimeout = undefined;
+          }
+          stream.kill();
+          return;
+        }
+        if (!isWarmup) return;
         const errorMessage = e instanceof Error ? e.message : String(e);
         this.debug(`[${queue.id}] Crossfade transition stream failed: ${errorMessage}`);
-        // Only the warmup state (before the swap) owns the boundary timer:
-        // after the swap the transition stream is the playing stream and the
-        // queue has begun the next cycle.
-        if (queue._crossfadeWarmup !== stream) return;
         queue._crossfadeWarmup = undefined;
         if (queue._crossfadeTimeout) {
           clearTimeout(queue._crossfadeTimeout);

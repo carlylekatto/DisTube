@@ -3,7 +3,7 @@ import { DisTubeError, DisTubeStream, Events, Queue, QueueManager, type Song } f
 
 vi.mock("@/core/DisTubeStream", () => ({
   DisTubeStream: vi.fn(function (this: any) {
-    return { on: vi.fn(), kill: vi.fn() };
+    return { on: vi.fn(), kill: vi.fn(), setVolume: vi.fn() };
   }),
   checkFFmpeg: vi.fn(),
 }));
@@ -530,7 +530,7 @@ describe("QueueManager", () => {
           // Stop the queue at the moment the stream is created, simulating a
           // state change between the two on-line checks in preloadNextSong.
           queue.stopped = true;
-          return { on: vi.fn(), kill };
+          return { on: vi.fn(), kill, setVolume: vi.fn() };
         });
 
         await queueManager.preloadNextSong(queue);

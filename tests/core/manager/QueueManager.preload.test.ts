@@ -14,6 +14,8 @@ class FakeStream extends EventEmitter {
     this.#killed = true;
   });
   spawn = vi.fn();
+  /** Mirrors `DisTubeStream#setVolume`: the gain is applied when spawning. */
+  setVolume = vi.fn();
   get killed() {
     return this.#killed;
   }

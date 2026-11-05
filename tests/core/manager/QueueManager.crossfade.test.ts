@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Events, Queue, QueueManager, type Song } from "@";
+import { Events, Queue, QueueManager, type Song, volumeToGain } from "@";
 
 /**
  * Simulated stream mimicking the lifecycle of the real DisTubeStream: it is
@@ -12,6 +12,11 @@ class FakeStream extends EventEmitter {
   readonly options: { crossfade?: Record<string, unknown> };
   /** Mirrors `DisTubeStream#hasBufferedAudio`: a warmed-up stream is ready. */
   hasBufferedAudio = true;
+  /** Mirrors `DisTubeStream#setVolume`: records the gain applied to the PCM. */
+  volume = 1;
+  setVolume = vi.fn((volume: number) => {
+    this.volume = volume;
+  });
   #killed = false;
   kill = vi.fn(() => {
     this.#killed = true;
@@ -152,6 +157,11 @@ describe("QueueManager crossfade (playback simulation)", () => {
       expect(queue._preloadedSong).toBeUndefined();
       // The transition stream was NOT spawned again by voice.play
       expect(transition.spawn).toHaveBeenCalledTimes(1);
+      // The queue volume is applied before the stream is played: a warmed-up
+      // stream buffers PCM at the time it is written, so applying the volume
+      // only at playback time would leak the buffered beginning at full volume.
+      expect(preloaded.setVolume).toHaveBeenCalledWith(volumeToGain(50));
+      expect(transition.setVolume).toHaveBeenCalledWith(volumeToGain(50));
     });
 
     it("falls back to the regular transition when the warmed-up stream has no audio yet", async () => {
@@ -359,6 +369,47 @@ describe("QueueManager crossfade (playback simulation)", () => {
       expect(transition.killed).toBe(true);
       expect(queue.songs[0].id).toBe("song-1");
       expect(queue.previousSongs).toHaveLength(0);
+    });
+
+    it("ignores the premature close of a transition stream the player swapped out", async () => {
+      const { mockDisTube, queueManager, queue, voice } = createSimulatedQueue();
+      queue.crossfade = 6;
+
+      await queueManager.playSong(queue);
+      await vi.advanceTimersByTimeAsync(10_000);
+      const transition = asFake(queue._crossfadeWarmup);
+      (queue.voice as any).playbackTime = 94;
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(voice.play).toHaveBeenLastCalledWith(transition);
+      mockDisTube.debug.mockClear();
+
+      // The audio player destroys the resource pipeline whenever it switches
+      // resources, and @discordjs/voice reports that teardown on the stream
+      // input as ERR_STREAM_PREMATURE_CLOSE. It is not a transition failure:
+      // the stream was already swapped in and belongs to the voice.
+      transition.emit("error", Object.assign(new Error("Premature close"), { code: "ERR_STREAM_PREMATURE_CLOSE" }));
+
+      expect(mockDisTube.debug).not.toHaveBeenCalledWith(expect.stringContaining("Crossfade transition stream failed"));
+      expect(transition.killed).toBe(false);
+    });
+
+    it("drops a warm-up stream whose pipeline was torn down without reporting a failure", async () => {
+      const { mockDisTube, queueManager, queue } = createSimulatedQueue();
+      queue.crossfade = 6;
+
+      await queueManager.playSong(queue);
+      await vi.advanceTimersByTimeAsync(10_000);
+      const transition = asFake(queue._crossfadeWarmup);
+      mockDisTube.debug.mockClear();
+
+      transition.emit("error", Object.assign(new Error("Premature close"), { code: "ERR_STREAM_PREMATURE_CLOSE" }));
+
+      // The stream is dead, so the boundary must not swap it in, but a normal
+      // pipeline teardown must not be reported as a crossfade failure.
+      expect(queue._crossfadeWarmup).toBeUndefined();
+      expect(transition.killed).toBe(true);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(mockDisTube.debug).not.toHaveBeenCalledWith(expect.stringContaining("Crossfade transition stream failed"));
     });
 
     it("falls back to the original url when the adapter fails", async () => {

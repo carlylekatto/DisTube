@@ -18,6 +18,16 @@ import type { DisTubeStream } from "./DisTubeStream";
 import type { DisTubeVoiceManager } from "./manager/DisTubeVoiceManager";
 
 /**
+ * Convert a volume percentage to the gain applied to the PCM stream.
+ *
+ * The curve compensates the loudness perception of the raw sample scaling, so
+ * `50` sounds roughly half as loud as `100` instead of being 6 dB quieter.
+ * @param volume - The volume percentage, from `0` to `100`
+ * @returns The gain to apply to every sample
+ */
+export const volumeToGain = (volume: number): number => (volume / 100) ** (0.5 / Math.log10(2));
+
+/**
  * Create a voice connection to the voice channel
  */
 export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
@@ -281,7 +291,7 @@ export class DisTubeVoice extends TypedEmitter<DisTubeVoiceEvents> {
       throw new DisTubeError("NUMBER_COMPARE", "Volume", "bigger or equal to", 0);
     }
     this.#volume = volume;
-    this.stream?.setVolume((this.#volume / 100) ** (0.5 / Math.log10(2)));
+    this.stream?.setVolume(volumeToGain(this.#volume));
   }
   /**
    * Get or set the volume percentage
