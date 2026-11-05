@@ -5,6 +5,26 @@ All the notable changes of DisTube are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.2.4]
+
+This version removes two audible and noisy artifacts of the crossfade path.
+
+### Fixed
+
+- Apply the queue volume to a stream at the moment it is created, not only when it is played. The
+  volume transformer processes each chunk when it is written, so a stream that buffered PCM during a
+  warm-up (a preloaded song or the crossfade transition stream, which is prepared tens of seconds in
+  advance) played its buffered beginning at full volume: the merge surfaced as a burst roughly as
+  loud as the difference between the default volume and 100% (about +10 dB at volume 50) right at the
+  fade boundary, before the correct gain took over.
+- Ignore `ERR_STREAM_PREMATURE_CLOSE` on a transition stream. `@discordjs/voice` destroys the audio
+  resource pipeline of the previous stream when the player switches resources, and that teardown is
+  reported on the outgoing stream as a premature close. It is a normal hand-over, not a crossfade
+  failure, so it is no longer debugged as one; a warm-up stream that was torn down that way is still
+  dropped so it is never swapped in.
+- Export `volumeToGain`, the function that converts a volume percentage into the gain applied to the
+  PCM stream, so hosts can prepare a stream with the same curve as `DisTubeVoice`.
+
 ## [6.2.3]
 
 This version makes a dying crossfade transition stream diagnosable instead of crashing the host
