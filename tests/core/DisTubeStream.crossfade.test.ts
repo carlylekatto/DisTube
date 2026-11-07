@@ -84,9 +84,9 @@ describe("DisTubeStream crossfade", () => {
     // Normalization + fade graph
     const graph = args[args.indexOf("-filter_complex") + 1];
     expect(graph).toBe(
-      "[0:a]aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo[a0];" +
-        "[1:a]aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo[a1];" +
-        "[a0][a1]acrossfade=d=6:c1=qsin:c2=qsin[xf]",
+      "[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a0];" +
+        "[1:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a1];" +
+        "[a0][a1]acrossfade=d=6:c1=qsin:c2=qsin,alimiter=limit=0.95:attack=5:release=50:level=disabled[xf]",
     );
     // No extra filters: the fade output is mapped directly
     expect(args[args.indexOf("-map") + 1]).toBe("[xf]");

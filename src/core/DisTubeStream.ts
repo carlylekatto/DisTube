@@ -297,8 +297,8 @@ export class DisTubeStream extends TypedEmitter<{
       secondaryOpts.i = secondaryLocal;
     }
 
-    const normalize = `aresample=${AUDIO_SAMPLE_RATE},aformat=sample_fmts=s16:channel_layouts=stereo`;
-    const fade = `[a0][a1]acrossfade=d=${duration}:c1=${outCurve}:c2=${inCurve}[xf]`;
+    const normalize = `aresample=${AUDIO_SAMPLE_RATE},aformat=sample_fmts=fltp:channel_layouts=stereo`;
+    const fade = `[a0][a1]acrossfade=d=${duration}:c1=${outCurve}:c2=${inCurve},alimiter=limit=0.95:attack=5:release=50:level=disabled[xf]`;
     const graph = [
       `[0:a]${normalize}[a0]`,
       `[1:a]${normalize}[a1]`,
