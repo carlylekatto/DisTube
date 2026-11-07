@@ -5,6 +5,16 @@ All the notable changes of DisTube are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.2.5]
+
+This version removes audible and noisy artifacts of the crossfade path when fading loud, high-RMS tracks.
+
+### Fixed
+
+- Avoid catastrophic 16-bit integer polarity wrap-around and hard clipping when crossfading loud EDM/dariacore/hyperflip tracks.
+- Normalize inputs to 32-bit float (`sample_fmts=fltp`) before the `acrossfade` filter so equal-power curves sum without wrapping at ±32767.
+- Add `alimiter=limit=0.95:attack=5:release=50:level=disabled` right after `acrossfade` to keep peaks below 0 dBFS before PCM output.
+
 ## [6.2.4]
 
 This version removes two audible and noisy artifacts of the crossfade path.
