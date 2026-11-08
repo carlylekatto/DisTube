@@ -5,6 +5,18 @@ All the notable changes of DisTube are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.2.6]
+
+This version removes a permanent deadlock that killed a queue when the last song failed to play.
+
+### Fixed
+
+- Stop the voice and remove the queue directly when a playing error empties the queue (in
+  `QueueManager.playSong` and `#handlePlayingError`). The previous `queue.stop()` call queued a task
+  on the `_taskQueue` that was already locked by the failing task, so the queue could never finish
+  stopping: it hung mid-teardown, never emitted `deleteQueue` and left the host's controller message
+  stale forever.
+
 ## [6.2.5]
 
 This version removes audible and noisy artifacts of the crossfade path when fading loud, high-RMS tracks.
