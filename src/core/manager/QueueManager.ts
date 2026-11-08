@@ -143,7 +143,8 @@ export class QueueManager extends GuildIdManager<Queue> {
       await this.playSong(queue);
     } else {
       this.debug(`[${queue.id}] Queue is empty, stopping...`);
-      await queue.stop();
+      queue.voice.stop();
+      queue.remove();
     }
   }
 
@@ -160,7 +161,8 @@ export class QueueManager extends GuildIdManager<Queue> {
   async playSong(queue: Queue, emitPlaySong = true, options?: { keepSongOnError?: boolean }) {
     if (!queue) return;
     if (queue.stopped || !queue.songs.length) {
-      await queue.stop();
+      queue.voice.stop();
+      queue.remove();
       return;
     }
     try {
