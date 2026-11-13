@@ -66,6 +66,26 @@ export class Queue extends DisTubeBase {
    * @internal
    */
   _beginTime: number;
+  /**
+   * IDs of songs that failed to play during autoplay for the current seed.
+   * @internal
+   */
+  readonly _failedAutoplayIds: Set<string> = new Set();
+  /**
+   * The seed song that generated current autoplay items.
+   * @internal
+   */
+  _autoplaySeed?: Song;
+  /**
+   * Current number of failed autoplay attempts for the current seed.
+   * @internal
+   */
+  _autoplayAttempts = 0;
+  /**
+   * Abort controller to cancel pending autoplay lookup when an add begins.
+   * @internal
+   */
+  _autoplayAbortController?: AbortController;
   #filters: FilterManager;
   #initialized = false;
   /**
@@ -305,6 +325,10 @@ export class Queue extends DisTubeBase {
    * ```
    */
   addToQueue(song: Song | Song[], position = 0): Queue {
+    if (this._autoplayAbortController) {
+      this._autoplayAbortController.abort();
+      this._autoplayAbortController = undefined;
+    }
     if (this.stopped) throw new DisTubeError("QUEUE_STOPPED");
     if (!song || (Array.isArray(song) && !song.length)) {
       throw new DisTubeError("INVALID_TYPE", ["Song", "Array<Song>"], song, "song");
@@ -526,6 +550,12 @@ export class Queue extends DisTubeBase {
     try {
       if (typeof time !== "number") throw new DisTubeError("INVALID_TYPE", "number", time, "time");
       if (Number.isNaN(time) || time < 0) throw new DisTubeError("NUMBER_COMPARE", "time", "bigger or equal to", 0);
+      const currentSong = this.songs[0];
+      const playingSong =
+        currentSong?.stream?.playFromSource === false ? (currentSong.stream.song ?? currentSong) : currentSong;
+      if (playingSong?.duration && time > playingSong.duration) {
+        throw new DisTubeError("NUMBER_COMPARE", "time", "smaller or equal to", playingSong.duration);
+      }
       this._clearPreload();
       this._beginTime = time;
       await this.play(false);
@@ -544,28 +574,55 @@ export class Queue extends DisTubeBase {
    * Internal implementation of addRelatedSong without task queue protection.
    * Used by methods that already hold the task queue lock.
    * @param song - The song to get related songs from. Defaults to the current playing song.
+   * @param exclude - Optional IDs of songs to exclude from related candidates.
    * @returns A promise that resolves to the added song
    * @throws {@link DisTubeError} When the queue does not have any playing song,
    * or when no related song could be found
    * @internal
    */
-  async _addRelatedSong(song?: Song): Promise<Song> {
+  async _addRelatedSong(song?: Song, exclude?: Set<string>): Promise<Song> {
     const current = song ?? this.songs?.[0];
     if (!current) throw new DisTubeError("NO_PLAYING_SONG");
-    const prevIds = this.previousSongs.map(p => p.id);
-    const relatedSongs = (await this.#getRelatedSong(current)).filter(s => !prevIds.includes(s.id));
-    this.debug(`[${this.id}] Getting related songs from: ${current}`);
-    if (!relatedSongs.length && !current.stream.playFromSource) {
-      const altSong = current.stream.song;
-      if (altSong) relatedSongs.push(...(await this.#getRelatedSong(altSong)).filter(s => !prevIds.includes(s.id)));
-      this.debug(`[${this.id}] Getting related songs from streamed song: ${altSong}`);
+    this._autoplaySeed = current;
+
+    const controller = new AbortController();
+    this._autoplayAbortController = controller;
+
+    const prevIds = new Set(this.previousSongs.map(p => p.id));
+    if (exclude) {
+      for (const id of exclude) prevIds.add(id);
     }
-    const nextSong = relatedSongs[0];
-    if (!nextSong) throw new DisTubeError("NO_RELATED");
-    nextSong.metadata = current.metadata;
-    nextSong.member = this.clientMember;
-    this.addToQueue(nextSong);
-    return nextSong;
+    for (const id of this._failedAutoplayIds) {
+      prevIds.add(id);
+    }
+
+    try {
+      this.debug(`[${this.id}] Getting related songs from: ${current}`);
+      const relatedCandidates = await this.#getRelatedSong(current);
+      if (controller.signal.aborted) throw new DisTubeError("NO_RELATED");
+
+      const relatedSongs = relatedCandidates.filter(s => !prevIds.has(s.id));
+      if (!relatedSongs.length && !current.stream.playFromSource) {
+        const altSong = current.stream.song;
+        if (altSong) {
+          const altCandidates = await this.#getRelatedSong(altSong);
+          if (controller.signal.aborted) throw new DisTubeError("NO_RELATED");
+          relatedSongs.push(...altCandidates.filter(s => !prevIds.has(s.id)));
+        }
+        this.debug(`[${this.id}] Getting related songs from streamed song: ${altSong}`);
+      }
+      const nextSong = relatedSongs[0];
+      if (!nextSong) throw new DisTubeError("NO_RELATED");
+      (nextSong as any)._isAutoplay = true;
+      nextSong.metadata = current.metadata;
+      nextSong.member = this.clientMember;
+      this.addToQueue(nextSong);
+      return nextSong;
+    } finally {
+      if (this._autoplayAbortController === controller) {
+        this._autoplayAbortController = undefined;
+      }
+    }
   }
   /**
    * Add a related song of the playing song to the queue

@@ -5,6 +5,23 @@ All the notable changes of DisTube are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.2.7]
+
+This release backports high-value core stability and playback improvements from upstream PR [skick1234/DisTube#354](https://github.com/skick1234/DisTube/pull/354).
+
+### Added
+
+- `autoplayAttempts` option in `DisTubeOptions` (defaults to `3`), enabling automatic retries with alternative related songs when an autoplay track fails to play (Upstream commit `b43832b`).
+- `DisTubeError.is(error)` type guard and `transient?: boolean` property on `DisTubeError` to distinguish recoverable network failures.
+- `retryRequest(fn, retries, delay)` and `isTransientFailure(error)` utility helpers to automatically retry transient network errors like HTTP 408, 500, 502, 503, 504, ECONNRESET, and ETIMEDOUT (Upstream commit `5a4cf6f`).
+
+### Changed
+
+- Fallback stream resolution now uses smart duration matching: when searching for playable alternative streams across plugins, candidates with durations matching within ±5 seconds of the target song are preferred, avoiding short previews and mismatched uploads (Upstream commit `8bf9edf`).
+- `Queue.addToQueue` immediately aborts any in-flight autoplay lookup via an `AbortController`, ensuring user-enqueued tracks always take immediate precedence over pending autoplay queries (Upstream commit `aecf2ae`).
+- `Queue.seek(time)` bounds seek position against the actively playing fallback stream's duration rather than the original unplayable metadata duration, preventing playback stalls on truncated fallback audio (Upstream commit `0054a97`).
+- `DisTubeHandler.followRedirectLink` now wraps redirect resolution in `retryRequest` to withstand transient network hiccups (Upstream commit `5a4cf6f`).
+
 ## [6.2.6]
 
 This version removes a permanent deadlock that killed a queue when the last song failed to play.

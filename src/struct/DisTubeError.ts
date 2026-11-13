@@ -394,6 +394,10 @@ export class DisTubeError<T extends string = any> extends Error {
    */
   errorCode: string;
   /**
+   * Whether the error was caused by a transient failure (e.g. temporary network issue).
+   */
+  transient?: boolean;
+  /**
    * Create a DisTube error with a static error code.
    * @param code - The code of the error
    */
@@ -450,6 +454,15 @@ export class DisTubeError<T extends string = any> extends Error {
     error.message = message;
     if (options && "cause" in options) error.cause = options.cause;
     return error;
+  }
+
+  /**
+   * Check whether a value is a DisTubeError.
+   * @param error - The value to test
+   * @returns `true` when the value is a DisTubeError
+   */
+  static is(error: unknown): error is DisTubeError {
+    return error instanceof DisTubeError;
   }
 
   /**

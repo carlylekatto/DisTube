@@ -15,9 +15,11 @@ import {
   isNsfwChannel,
   isSupportedVoiceChannel,
   isTextChannelInstance,
+  isTransientFailure,
   isURL,
   isVoiceChannelEmpty,
   resolveGuildId,
+  retryRequest,
 } from "@";
 import { rawBotVoiceState, rawClientUser, rawGuild, rawMessage, rawUserVoiceState } from "./raw";
 
@@ -228,4 +230,62 @@ test("checkInvalidKey()", () => {
   expect(() => checkInvalidKey(target, { a: undefined }, name)).toThrow(`'b' does not need to be provided in ${name}`);
   expect(checkInvalidKey(target, { a: 0, b: 0, c: 0 }, name)).toBeUndefined();
   expect(checkInvalidKey(target, ["a", "b"], name)).toBeUndefined();
+});
+
+test("isTransientFailure()", () => {
+  expect(isTransientFailure(new DisTubeError("NO_RESULT", "query"))).toBe(false);
+  const err = new DisTubeError("NO_RESULT", "query");
+  err.transient = true;
+  expect(isTransientFailure(err)).toBe(true);
+  expect(isTransientFailure({ status: 500 })).toBe(true);
+  expect(isTransientFailure({ status: 502 })).toBe(true);
+  expect(isTransientFailure({ status: 503 })).toBe(true);
+  expect(isTransientFailure({ status: 504 })).toBe(true);
+  expect(isTransientFailure({ status: 408 })).toBe(true);
+  expect(isTransientFailure({ status: 404 })).toBe(false);
+  expect(isTransientFailure({ status: 200 })).toBe(false);
+  expect(isTransientFailure({ code: "ECONNRESET" })).toBe(true);
+  expect(isTransientFailure({ code: "ETIMEDOUT" })).toBe(true);
+  expect(isTransientFailure({ code: "ENOENT" })).toBe(false);
+  expect(isTransientFailure(new Error("Generic"))).toBe(false);
+});
+
+test("retryRequest()", async () => {
+  let attempts = 0;
+  const result = await retryRequest(async () => {
+    attempts++;
+    if (attempts < 3) {
+      const err = new Error("Connection reset");
+      (err as any).code = "ECONNRESET";
+      throw err;
+    }
+    return "success";
+  });
+  expect(result).toBe("success");
+  expect(attempts).toBe(3);
+
+  let failedAttempts = 0;
+  await expect(
+    retryRequest(
+      async () => {
+        failedAttempts++;
+        const err = new Error("Gateway timeout");
+        (err as any).status = 504;
+        throw err;
+      },
+      { attempts: 2 },
+    ),
+  ).rejects.toThrow("Gateway timeout");
+  expect(failedAttempts).toBe(2);
+
+  let nonTransientAttempts = 0;
+  await expect(
+    retryRequest(async () => {
+      nonTransientAttempts++;
+      const err = new Error("Not found");
+      (err as any).status = 404;
+      throw err;
+    }),
+  ).rejects.toThrow("Not found");
+  expect(nonTransientAttempts).toBe(1);
 });

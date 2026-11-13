@@ -84,6 +84,11 @@ export class Options {
    */
   stuckThreshold: number;
   /**
+   * The number of times in a row that autoplay items may fail before autoplay gives up.
+   * @default 3
+   */
+  autoplayAttempts: number;
+  /**
    * The preload options of the DisTube instance.
    * @default { enabled: false, threshold: 15 }
    */
@@ -118,6 +123,7 @@ export class Options {
     this.joinNewVoiceChannel = opts.joinNewVoiceChannel;
     this.unhandledError = opts.unhandledError;
     this.stuckThreshold = opts.stuckThreshold;
+    this.autoplayAttempts = opts.autoplayAttempts;
     this.preload = this.#preloadOption(opts.preload);
     this.crossfade = this.#crossfadeOption(opts.crossfade);
     this.ffmpeg = this.#ffmpegOption(options);
@@ -209,7 +215,7 @@ export class Options {
       "emitAddSongWhenCreatingQueue",
       "emitAddListWhenCreatingQueue",
     ]);
-    const numberOptions = new Set(["stuckThreshold"]);
+    const numberOptions = new Set(["stuckThreshold", "autoplayAttempts"]);
     const stringOptions = new Set(["unhandledError"]);
     const objectOptions = new Set(["customFilters", "ffmpeg", "preload", "crossfade"]);
     const optionalOptions = new Set(["customFilters"]);
@@ -225,6 +231,9 @@ export class Options {
       } else if (numberOptions.has(key)) {
         if (typeof value !== "number" || Number.isNaN(value)) {
           throw new DisTubeError("INVALID_TYPE", "number", value, `DisTubeOptions.${key}`);
+        }
+        if (key === "autoplayAttempts" && value < 1) {
+          throw new DisTubeError("NUMBER_COMPARE", `DisTubeOptions.${key}`, "bigger or equal to", 1);
         }
       } else if (stringOptions.has(key)) {
         if (typeof value !== "string") {

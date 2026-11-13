@@ -92,6 +92,7 @@ export class QueueManager extends GuildIdManager<Queue> {
       }
 
       if (queue.songs.length === 0 && queue.autoplay) {
+        queue._autoplayAttempts = 0;
         try {
           this.debug(`[QueueManager] Adding related song: ${queue.id}`);
           await queue._addRelatedSong(song);
@@ -141,6 +142,27 @@ export class QueueManager extends GuildIdManager<Queue> {
     if (queue.songs.length > 0) {
       this.debug(`[${queue.id}] Playing next song: ${queue.songs[0]}`);
       await this.playSong(queue);
+    } else if (queue.autoplay && (song as any)._isAutoplay) {
+      queue._failedAutoplayIds.add(song.id);
+      if (queue._autoplayAttempts < (this.options.autoplayAttempts ?? 3)) {
+        queue._autoplayAttempts++;
+        this.debug(
+          `[${queue.id}] Autoplay item ${song.id} failed, retrying attempt ${queue._autoplayAttempts}/${this.options.autoplayAttempts ?? 3}`,
+        );
+        try {
+          await queue._addRelatedSong(queue._autoplaySeed ?? song);
+          if (queue.songs.length > 0) {
+            await this.playSong(queue);
+            return;
+          }
+        } catch (e: unknown) {
+          this.debug(`[${queue.id}] Autoplay retry failed: ${e}`);
+          this.emit(Events.NO_RELATED, queue, e instanceof DisTubeError ? e : new DisTubeError("NO_RELATED"));
+        }
+      }
+      this.debug(`[${queue.id}] Queue is empty after autoplay attempts, stopping...`);
+      queue.voice.stop();
+      queue.remove();
     } else {
       this.debug(`[${queue.id}] Queue is empty, stopping...`);
       queue.voice.stop();
@@ -201,6 +223,7 @@ export class QueueManager extends GuildIdManager<Queue> {
       queue._beginTime = 0;
       this.debug(`[${queue.id}] Started playing: ${song}`);
       await queue.voice.play(dtStream);
+      queue._autoplayAttempts = 0;
       if (emitPlaySong) this.emit(Events.PLAY_SONG, queue, song);
       this.schedulePreload(queue);
       this.scheduleCrossfade(queue);
@@ -222,7 +245,7 @@ export class QueueManager extends GuildIdManager<Queue> {
    * @param queue - The guild queue
    */
   schedulePreload(queue: Queue) {
-    if (!this.options.preload.enabled || queue.stopped || queue.paused) return;
+    if (!this.options.preload?.enabled || queue.stopped || queue.paused) return;
     if (queue._preloadTimeout) {
       clearTimeout(queue._preloadTimeout);
       queue._preloadTimeout = undefined;
@@ -359,7 +382,8 @@ export class QueueManager extends GuildIdManager<Queue> {
     if (!Number.isFinite(currentTime)) return;
     const remaining = songDuration - currentTime;
     if (remaining <= fade) return;
-    const delayMs = Math.max(0, (remaining - fade - this.options.crossfade.warmup) * 1000);
+    const warmup = this.options.crossfade?.warmup ?? 5;
+    const delayMs = Math.max(0, (remaining - fade - warmup) * 1000);
     this.debug(
       `[${queue.id}] Scheduling crossfade (${fade}s fade) in ${(delayMs / 1000).toFixed(1)}s: ${currentSong} -> ${nextSong}`,
     );

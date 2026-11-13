@@ -41,6 +41,21 @@ export const RECONNECT_MAX_ATTEMPTS = 5;
 export const STUCK_THRESHOLD_MS = 10_000;
 
 /**
+ * Default number of autoplay retry attempts when an autoplay item fails to resolve or stream.
+ */
+export const DEFAULT_AUTOPLAY_ATTEMPTS = 3;
+
+/**
+ * The number of candidates requested from a plugin when searching for a playable fallback.
+ */
+export const FALLBACK_CANDIDATES = 5;
+
+/**
+ * The duration tolerance in seconds when matching a song to its fallback candidate.
+ */
+export const DURATION_TOLERANCE_SECS = 5;
+
+/**
  * The HTTP status codes that are followed as a redirection.
  */
 export const HTTP_REDIRECT_CODES = new Set([301, 302, 303, 307, 308]);
@@ -118,6 +133,7 @@ export const defaultOptions = {
   joinNewVoiceChannel: true,
   unhandledError: "log",
   stuckThreshold: STUCK_THRESHOLD_MS,
+  autoplayAttempts: DEFAULT_AUTOPLAY_ATTEMPTS,
   preload: false,
   crossfade: {
     duration: DEFAULT_CROSSFADE_DURATION_SECS,

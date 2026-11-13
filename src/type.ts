@@ -476,6 +476,13 @@ export type DisTubeOptions = {
    */
   stuckThreshold?: number;
   /**
+   * The number of times in a row that autoplay items may fail to prepare or stream
+   * before autoplay gives up. When an attempt fails, another related song from the
+   * same seed is queried.
+   * @default 3
+   */
+  autoplayAttempts?: number;
+  /**
    * Pre-fetch stream information and prepare the stream for the next song in
    * the queue before the current song finishes playing, to reduce the delay
    * between two songs.

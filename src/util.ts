@@ -313,3 +313,124 @@ export const checkEncryptionLibraries = async () => {
   }
   return false;
 };
+
+const TRANSIENT_STATUSES: ReadonlySet<number> = new Set([408, 500, 502, 503, 504]);
+const CONNECTION_CODES: ReadonlySet<string> = new Set([
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "EPIPE",
+  "UND_ERR_SOCKET",
+  "ETIMEDOUT",
+]);
+const MAX_WAITS_MS = [250, 1000];
+const CANCELLED_NAMES = new Set(["TimeoutError", "AbortError"]);
+
+export interface RetryRequestOptions {
+  /** Optional AbortSignal to cancel retry attempts */
+  readonly signal?: AbortSignal;
+  /** Max retry attempts (default: 3) */
+  readonly attempts?: number;
+  /** Custom check for whether an error is transient */
+  readonly transient?: (error: unknown) => boolean;
+  /** Optional callback fired on each retry */
+  readonly onRetry?: (attempt: number, reason: string) => void;
+}
+
+function* errorChain(value: unknown): Generator<object> {
+  const seen = new Set<unknown>();
+  for (let link = value; typeof link === "object" && link !== null && !seen.has(link); ) {
+    seen.add(link);
+    yield link;
+    link = "cause" in link ? (link as any).cause : undefined;
+  }
+}
+
+function statusOf(value: unknown): number | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  if ("status" in value && typeof (value as any).status === "number") return (value as any).status;
+  if ("statusCode" in value && typeof (value as any).statusCode === "number") return (value as any).statusCode;
+  return undefined;
+}
+
+function codeOf(value: object): string | undefined {
+  return "code" in value && typeof (value as any).code === "string" ? (value as any).code : undefined;
+}
+
+function isCancelled(error: unknown): boolean {
+  return [...errorChain(error)].some(
+    link => "name" in link && typeof (link as any).name === "string" && CANCELLED_NAMES.has((link as any).name),
+  );
+}
+
+function isFailedRequest(value: unknown): boolean {
+  const status = statusOf(value);
+  if (status !== undefined) return TRANSIENT_STATUSES.has(status);
+  return [...errorChain(value)].some(link => CONNECTION_CODES.has(codeOf(link) ?? ""));
+}
+
+/**
+ * Check whether an error or response indicates a transient network or HTTP failure.
+ * @param value - The error or response to check
+ * @returns `true` when the failure is transient
+ */
+export function isTransientFailure(value: unknown): boolean {
+  if (DisTubeError.is(value)) return value.transient === true;
+  return !isCancelled(value) && isFailedRequest(value);
+}
+
+function pause(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason);
+    let timer: NodeJS.Timeout;
+    const abort = (): void => {
+      clearTimeout(timer);
+      reject(signal?.reason);
+    };
+    timer = setTimeout(() => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", abort, { once: true });
+  });
+}
+
+/**
+ * Calls `send` up to `attempts` (default: 3) times, retrying upon encountering a transient
+ * status code (500, 502, 503, 504, 408) or a network connection drop (ECONNRESET, ETIMEDOUT, etc.).
+ *
+ * @param send    - The asynchronous function to execute
+ * @param options - Retry options
+ * @returns The resolved result of `send()`
+ */
+export async function retryRequest<T>(send: () => Promise<T>, options: RetryRequestOptions = {}): Promise<T> {
+  const { signal, attempts = 3, transient = isTransientFailure, onRetry } = options;
+  for (let attempt = 1; ; attempt++) {
+    signal?.throwIfAborted?.();
+    const isLast = attempt >= attempts;
+    let failure: { status?: number; error?: string } | undefined;
+    try {
+      const answer = await send();
+      const status = statusOf(answer);
+      if (isLast || signal?.aborted || status === undefined || !TRANSIENT_STATUSES.has(status)) return answer;
+      if (
+        typeof answer === "object" &&
+        answer !== null &&
+        "body" in answer &&
+        typeof (answer as any).body?.cancel === "function"
+      ) {
+        (answer as any).body.cancel().catch(() => undefined);
+      }
+      failure = { status };
+    } catch (error: unknown) {
+      if (isLast || signal?.aborted || isCancelled(error) || !transient(error)) throw error;
+      const status = statusOf(error);
+      failure = status === undefined ? { error: error instanceof Error ? error.name : String(error) } : { status };
+    }
+    const reason = failure.status !== undefined ? `HTTP ${failure.status}` : (failure.error ?? "unknown error");
+    onRetry?.(attempt, reason);
+    const maxWait = MAX_WAITS_MS[attempt - 1] ?? 1000;
+    await pause(Math.random() * maxWait, signal);
+  }
+}

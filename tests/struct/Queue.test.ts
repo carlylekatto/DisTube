@@ -258,6 +258,31 @@ describe("Queue", () => {
       expect(mockDisTube.emit).toHaveBeenCalledWith(Events.SEEK_SONG, queue, queue.songs[0], 30);
     });
 
+    it("throws when seek exceeds song duration", async () => {
+      const mockVoice = createMockVoice();
+      const queue = new Queue(mockDisTube, mockVoice);
+      queue.songs = [{ id: "1", duration: 180 } as Song];
+
+      await expect(queue.seek(200)).rejects.toThrow(
+        new DisTubeError("NUMBER_COMPARE", "time", "smaller or equal to", 180),
+      );
+    });
+
+    it("allows seek within fallback song duration if playing fallback", async () => {
+      const mockVoice = createMockVoice();
+      const queue = new Queue(mockDisTube, mockVoice);
+      const fallbackSong = { id: "yt-1", duration: 240, stream: { playFromSource: true } } as Song;
+      const originalSong = {
+        id: "sp-1",
+        duration: 180,
+        stream: { playFromSource: false, song: fallbackSong },
+      } as Song;
+      queue.songs = [originalSong];
+
+      await queue.seek(200);
+      expect(queue._beginTime).toBe(200);
+    });
+
     it("play() delegates to queues.playSong with emitPlaySong parameter", () => {
       const queue = new Queue(mockDisTube, createMockVoice());
       queue.songs = [{ id: "1" } as Song];
@@ -293,6 +318,17 @@ describe("Queue", () => {
       queue.addToQueue(song2);
 
       expect(queue.songs).toEqual([song1, song2]);
+    });
+
+    it("aborts pending autoplay lookup when addToQueue is called", () => {
+      const queue = new Queue(mockDisTube, createMockVoice());
+      const abortSpy = vi.fn();
+      queue._autoplayAbortController = { abort: abortSpy } as any;
+
+      queue.addToQueue({ id: "added" } as Song);
+
+      expect(abortSpy).toHaveBeenCalled();
+      expect(queue._autoplayAbortController).toBeUndefined();
     });
 
     it("adds a song at a specific position", () => {

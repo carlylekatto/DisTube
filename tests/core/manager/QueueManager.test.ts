@@ -14,9 +14,13 @@ describe("QueueManager", () => {
       options: {
         emitNewSongOnly: false,
         savePreviousSongs: true,
+        autoplayAttempts: 3,
+        preload: { enabled: false, threshold: 15 },
+        crossfade: { duration: 0, curve: "qsin", warmup: 5 },
         ffmpeg: { path: "ffmpeg", args: { global: {}, input: {}, output: {} } },
       },
       emit: vi.fn(),
+      emitError: vi.fn(),
       debug: vi.fn(),
       handler: { attachStreamInfo: vi.fn() },
       voices: { create: vi.fn() },
@@ -168,6 +172,66 @@ describe("QueueManager", () => {
         expect(queue.remove).toHaveBeenCalled();
         // Should NOT emit FINISH event when autoplay is true
         expect(mockDisTube.emit).not.toHaveBeenCalledWith(Events.FINISH, queue);
+      });
+
+      it("retries with another related song when an autoplay song fails to play", async () => {
+        const queue = new Queue(mockDisTube, createMockVoice());
+        const failedAutoplaySong = {
+          id: "failed-rel",
+          _isAutoplay: true,
+          stream: { playFromSource: true, url: "http://stream" },
+        } as any;
+        const secondRelatedSong = {
+          id: "second-rel",
+          _isAutoplay: true,
+          stream: { playFromSource: true, url: "http://stream2" },
+        } as any;
+        const seedSong = { id: "seed" } as Song;
+
+        queue.songs = [failedAutoplaySong];
+        queue.autoplay = true;
+        queue._autoplaySeed = seedSong;
+        mockDisTube.options.autoplayAttempts = 3;
+
+        vi.spyOn(queue, "_addRelatedSong").mockImplementation(async () => {
+          queue.songs.push(secondRelatedSong);
+          return secondRelatedSong;
+        });
+
+        vi.spyOn(queue.voice, "play")
+          .mockRejectedValueOnce(new Error("Playback failed"))
+          .mockResolvedValueOnce(undefined);
+
+        await queueManager.playSong(queue);
+
+        expect(queue._failedAutoplayIds.has("failed-rel")).toBe(true);
+        expect(queue._autoplayAttempts).toBe(0);
+        expect(queue._addRelatedSong).toHaveBeenCalledWith(seedSong);
+      });
+
+      it("stops queue after exceeding autoplayAttempts", async () => {
+        const queue = new Queue(mockDisTube, createMockVoice());
+        const failedAutoplaySong = {
+          id: "failed-rel",
+          _isAutoplay: true,
+          stream: { playFromSource: true, url: "http://stream" },
+        } as any;
+
+        queue.songs = [failedAutoplaySong];
+        queue.autoplay = true;
+        queue._autoplayAttempts = 2;
+        mockDisTube.options.autoplayAttempts = 2;
+
+        vi.spyOn(queue.voice, "play").mockRejectedValueOnce(new Error("Playback failed"));
+        vi.spyOn(queue.voice, "stop").mockImplementation(() => {});
+        vi.spyOn(queue, "remove").mockImplementation(() => {});
+        vi.spyOn(queue, "_addRelatedSong");
+
+        await queueManager.playSong(queue);
+
+        expect(queue._addRelatedSong).not.toHaveBeenCalled();
+        expect(queue.voice.stop).toHaveBeenCalled();
+        expect(queue.remove).toHaveBeenCalled();
       });
 
       it("emits EMPTY when the queue runs out of songs", async () => {

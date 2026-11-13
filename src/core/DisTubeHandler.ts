@@ -1,13 +1,25 @@
 import { request } from "undici";
-import { HTTP_REDIRECT_CODES, MAX_REDIRECT_DEPTH } from "../constant";
+import { DURATION_TOLERANCE_SECS, FALLBACK_CANDIDATES, HTTP_REDIRECT_CODES, MAX_REDIRECT_DEPTH } from "../constant";
 import { DisTubeError } from "../struct/DisTubeError";
 import type { ExtractorPlugin } from "../struct/ExtractorPlugin";
 import { Playlist } from "../struct/Playlist";
 import { Song } from "../struct/Song";
 import type { DisTubePlugin, ResolveOptions } from "../type";
 import { PluginType } from "../type";
-import { isURL } from "../util";
+import { isURL, retryRequest } from "../util";
 import { DisTubeBase } from "./DisTubeBase";
+
+/**
+ * Pick the fallback candidate nearest to the original song's duration.
+ */
+function closestCandidate(targetSong: Song, candidates: Song[]): Song | undefined {
+  const target = targetSong.duration;
+  if (!target) return candidates[0];
+  const gap = (candidate: Song) => (candidate.duration ? Math.abs(candidate.duration - target) : Infinity);
+  return candidates
+    .filter(candidate => !candidate.duration || gap(candidate) <= DURATION_TOLERANCE_SECS)
+    .reduce<Song | undefined>((best, candidate) => (best && gap(best) <= gap(candidate) ? best : candidate), undefined);
+}
 
 /**
  * DisTube's Handler
@@ -204,14 +216,48 @@ export class DisTubeHandler extends DisTubeBase {
       // A plugin that cannot play its own songs cannot provide a playable
       // version of them either.
       if (plugin.playable === false) continue;
-      const result = await plugin.searchSong(query, options);
-      if (!result) continue;
-      // The result has to be playable, otherwise the playback would fail later
-      // with a confusing error.
-      if (!result.stream.playFromSource) continue;
-      this.debug(`[${plugin.constructor.name}] Found a playable version of "${query}"`);
-      result.stream.url = await plugin.getStreamURL(result);
-      return result;
+
+      let candidates: Song[] = [];
+      try {
+        const searchResult = await plugin.search(query, { ...options, limit: FALLBACK_CANDIDATES });
+        if (searchResult?.songs?.length) candidates = [...searchResult.songs];
+      } catch {
+        // Fall back to searchSong if search fails or is not implemented
+      }
+      if (!candidates.length) {
+        try {
+          const single = await plugin.searchSong(query, options);
+          if (single) candidates = [single];
+        } catch {
+          continue;
+        }
+      }
+      if (!candidates.length) continue;
+
+      // Filter only playable candidates
+      let playableCandidates = candidates.filter(c => c?.stream.playFromSource);
+      if (!this.options.nsfw) {
+        playableCandidates = playableCandidates.filter(c => !c.ageRestricted);
+      }
+      if (!playableCandidates.length) continue;
+
+      const chosen = closestCandidate(song, playableCandidates);
+      if (!chosen) continue;
+
+      // Attempt to obtain stream URL from chosen candidate first, then other playable candidates
+      const ordered = [chosen, ...playableCandidates.filter(c => c !== chosen)];
+      for (const candidate of ordered) {
+        if (!candidate.stream.playFromSource) continue;
+        try {
+          candidate.stream.url = await plugin.getStreamURL(candidate);
+          if (candidate.stream.url) {
+            this.debug(
+              `[${plugin.constructor.name}] Found a playable version of "${query}": ${candidate.name} (${candidate.duration}s)`,
+            );
+            return candidate;
+          }
+        } catch {}
+      }
     }
     throw new DisTubeError("NO_RESULT", query);
   }
@@ -225,14 +271,16 @@ export class DisTubeHandler extends DisTubeBase {
   async followRedirectLink(url: string, maxRedirect = MAX_REDIRECT_DEPTH): Promise<string> {
     if (maxRedirect === 0) return url;
 
-    const res = await request(url, {
-      method: "HEAD",
-      headers: {
-        "user-agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +
-          "Chrome/129.0.0.0 Safari/537.3",
-      },
-    });
+    const res = await retryRequest(() =>
+      request(url, {
+        method: "HEAD",
+        headers: {
+          "user-agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +
+            "Chrome/129.0.0.0 Safari/537.3",
+        },
+      }),
+    );
 
     if (HTTP_REDIRECT_CODES.has(res.statusCode ?? 200)) {
       let location = res.headers.location;

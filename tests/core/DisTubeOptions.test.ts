@@ -28,6 +28,7 @@ test("Default DisTubeOptions", () => {
     },
     savePreviousSongs: true,
     stuckThreshold: 10000,
+    autoplayAttempts: 3,
     unhandledError: "log",
   });
 });
@@ -73,6 +74,20 @@ test("preload option accepts a boolean or an object", () => {
   expect(() => {
     new Options({ preload: { unknown: true } } as any);
   }).toThrow("'unknown' does not need to be provided in DisTubeOptions.preload");
+});
+
+test("autoplayAttempts option defaults and validation", () => {
+  expect(new Options({}).autoplayAttempts).toBe(3);
+  expect(new Options({ autoplayAttempts: 5 }).autoplayAttempts).toBe(5);
+  expect(() => new Options(<any>{ autoplayAttempts: 0 })).toThrow(
+    "'DisTubeOptions.autoplayAttempts' must be bigger or equal to 1",
+  );
+  expect(() => new Options(<any>{ autoplayAttempts: -1 })).toThrow(
+    "'DisTubeOptions.autoplayAttempts' must be bigger or equal to 1",
+  );
+  expect(() => new Options(<any>{ autoplayAttempts: "3" })).toThrow(
+    "Expected 'number' for 'DisTubeOptions.autoplayAttempts', but got '3'",
+  );
 });
 
 const typeOfOption = (option: string) => {
