@@ -635,7 +635,7 @@ describe("Queue", () => {
       },
       emit: vi.fn(),
       debug: vi.fn(),
-      queues: { playSong: vi.fn(), schedulePreload: vi.fn(), remove: vi.fn() },
+      queues: { playSong: vi.fn(), schedulePreload: vi.fn(), scheduleCrossfade: vi.fn(), remove: vi.fn() },
     } as any;
 
     beforeEach(() => {
@@ -675,6 +675,7 @@ describe("Queue", () => {
 
       expect(queue.songs).toContain(song);
       expect(mockDisTube.queues.schedulePreload).toHaveBeenCalledWith(queue);
+      expect(mockDisTube.queues.scheduleCrossfade).toHaveBeenCalledWith(queue);
     });
 
     it("pause cancels the pending preload timer", async () => {
@@ -709,6 +710,7 @@ describe("Queue", () => {
       expect(kill).toHaveBeenCalled();
       expect(queue._preloadedSong).toBeUndefined();
       expect(mockDisTube.queues.schedulePreload).toHaveBeenCalledWith(queue);
+      expect(mockDisTube.queues.scheduleCrossfade).toHaveBeenCalledWith(queue);
     });
   });
 });

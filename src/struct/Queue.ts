@@ -345,6 +345,7 @@ export class Queue extends DisTubeBase {
       this.songs.splice(position, 0, song);
     }
     this.queues?.schedulePreload?.(this);
+    this.queues?.scheduleCrossfade?.(this);
     return this;
   }
   /**
@@ -467,6 +468,7 @@ export class Queue extends DisTubeBase {
       this.songs.unshift(playing);
       this.emit(Events.SHUFFLE_QUEUE, this, this.songs);
       this.queues?.schedulePreload?.(this);
+      this.queues?.scheduleCrossfade?.(this);
       return this;
     } finally {
       this._taskQueue.resolve();

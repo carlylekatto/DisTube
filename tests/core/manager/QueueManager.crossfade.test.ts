@@ -434,5 +434,18 @@ describe("QueueManager crossfade (playback simulation)", () => {
       expect(transition.options.crossfade).toMatchObject({ primarySeek: 94 });
       expect(mockDisTube.debug).toHaveBeenCalledWith(expect.stringContaining("primary input preparation failed"));
     });
+
+    it("arms the crossfade when the next song is added via addToQueue after playback started", async () => {
+      const { queueManager, queue, song2 } = createSimulatedQueue();
+      queue.crossfade = 6;
+      // Start with only song1 in the queue
+      queue.songs = [queue.songs[0]];
+      await queueManager.playSong(queue);
+      expect(queue._crossfadeTimeout).toBeUndefined();
+
+      // Add song2 while song1 is playing
+      queue.addToQueue(song2);
+      expect(queue._crossfadeTimeout).toBeDefined();
+    });
   });
 });
