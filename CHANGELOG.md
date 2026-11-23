@@ -5,6 +5,16 @@ All the notable changes of DisTube are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.2.9]
+
+### Added
+
+- `primaryStartTime` in `PreparedCrossfadeInput` and `CrossfadeStreamOptions`: the media timestamp (in seconds) the fading-out input is trimmed to before the crossfade begins.
+
+### Fixed
+
+- Crossfade transitions no longer replay the end of the fading-out song when its source cannot start the stream at an arbitrary position: the input is now trimmed to the fade boundary on the media's own timeline (`-copyts` + `atrim`), instead of starting the fade at the boundary the source happened to deliver.
+
 ## [6.2.8]
 
 ### Fixed
