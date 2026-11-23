@@ -70,6 +70,19 @@ export interface CrossfadeStreamOptions {
    * reconnect flags.
    */
   primaryInputArgs?: FFmpegArg;
+  /**
+   * The media timestamp (in seconds) the first (fading out) input is trimmed
+   * to before the fade begins.
+   *
+   * A source that cannot start its stream at an arbitrary position begins at
+   * the closest boundary it supports, so its stream carries audio that was
+   * already played. The input is trimmed to this timestamp, which drops that
+   * audio and keeps the fade window intact.
+   *
+   * The timestamp belongs to the media's own timeline: the input keeps its
+   * original timestamps (`-copyts`) while it is trimmed.
+   */
+  primaryStartTime?: number;
 }
 
 let checked = process.env.NODE_ENV === "test";
@@ -243,10 +256,17 @@ export class DisTubeStream extends TypedEmitter<{
     const {
       duration,
       primarySeek,
+      primaryStartTime,
       secondaryUrl,
       outCurve = DEFAULT_CROSSFADE_CURVE,
       inCurve = DEFAULT_CROSSFADE_CURVE,
     } = crossfade;
+    // The trim is expressed in the media's own timeline: a timestamp of zero
+    // would trim nothing, so it is ignored.
+    const trimStart =
+      typeof primaryStartTime === "number" && Number.isFinite(primaryStartTime) && primaryStartTime > 0
+        ? primaryStartTime
+        : undefined;
     // The `af` output argument cannot coexist with filter_complex: move it to
     // the end of the filter graph instead.
     const outputArgs: FFmpegArg = { ...ffmpeg.args.output };
@@ -268,6 +288,9 @@ export class DisTubeStream extends TypedEmitter<{
         analyzeduration: 0,
         ...ffmpeg.args.input,
       }),
+      // The trim below is expressed in the media's own timeline, so the
+      // timestamps of the input must not be normalized to zero.
+      ...(trimStart !== undefined ? { copyts: true } : {}),
       ss: typeof primarySeek === "number" && primarySeek > 0 ? primarySeek.toString() : null,
       i: url,
     };
@@ -298,9 +321,12 @@ export class DisTubeStream extends TypedEmitter<{
     }
 
     const normalize = `aresample=${AUDIO_SAMPLE_RATE},aformat=sample_fmts=fltp:channel_layouts=stereo`;
+    // A source that starts at a fixed boundary carries audio that was already
+    // played: it is trimmed to the fade boundary before the fade.
+    const primaryChain = trimStart !== undefined ? `${normalize},atrim=start=${trimStart}` : normalize;
     const fade = `[a0][a1]acrossfade=d=${duration}:c1=${outCurve}:c2=${inCurve},alimiter=limit=0.95:attack=5:release=50:level=disabled[xf]`;
     const graph = [
-      `[0:a]${normalize}[a0]`,
+      `[0:a]${primaryChain}[a0]`,
       `[1:a]${normalize}[a1]`,
       fade,
       ...(extraFilters ? [`[xf]${extraFilters}[aout]`] : []),

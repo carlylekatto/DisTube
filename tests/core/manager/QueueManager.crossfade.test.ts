@@ -346,6 +346,39 @@ describe("QueueManager crossfade (playback simulation)", () => {
       });
     });
 
+    it("passes the media timestamp of the replacement input to the transition stream", async () => {
+      const { queueManager, queue } = createSimulatedQueue({
+        crossfade: {
+          duration: 0,
+          curve: "qsin",
+          warmup: 5,
+          preparePrimaryInput: (url: string, { seek }: { seek: number }) => {
+            expect(url).toBe("https://example.com/song-1");
+            expect(seek).toBe(94);
+            return {
+              // A stream that can only start at a fixed boundary: the adapter
+              // asks the library to trim it to the fade boundary.
+              url: "https://example.com/song-1?t=94",
+              seek: 0,
+              primaryStartTime: 94,
+            };
+          },
+        },
+      });
+      queue.crossfade = 6;
+
+      await queueManager.playSong(queue);
+      await vi.advanceTimersByTimeAsync(10_000);
+      const transition = asFake(queue._crossfadeWarmup);
+      expect(transition).toBeDefined();
+      expect(transition.url).toBe("https://example.com/song-1?t=94");
+      expect(transition.options.crossfade).toMatchObject({
+        primarySeek: 0,
+        primaryStartTime: 94,
+        secondaryUrl: "https://example.com/song-2",
+      });
+    });
+
     it("does not crash when the transition stream dies during the warmup", async () => {
       const { queueManager, queue, voice } = createSimulatedQueue();
       queue.crossfade = 6;

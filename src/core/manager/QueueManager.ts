@@ -432,6 +432,7 @@ export class QueueManager extends GuildIdManager<Queue> {
       let primaryUrl: string = primary.stream.url;
       let primarySeek = boundarySeek;
       let primaryInputArgs: FFmpegArg | undefined;
+      let primaryStartTime: number | undefined;
       const prepare = this.options.crossfade.preparePrimaryInput;
       if (prepare) {
         try {
@@ -442,6 +443,16 @@ export class QueueManager extends GuildIdManager<Queue> {
               primarySeek = prepared.seek;
             }
             primaryInputArgs = prepared.inputArgs;
+            // A source that starts at a fixed boundary carries audio that was
+            // already played: the media timestamp of the fade boundary lets
+            // the library trim that audio away.
+            if (
+              typeof prepared.primaryStartTime === "number" &&
+              Number.isFinite(prepared.primaryStartTime) &&
+              prepared.primaryStartTime > 0
+            ) {
+              primaryStartTime = prepared.primaryStartTime;
+            }
             this.debug(`[${queue.id}] Crossfade primary input prepared by the adapter`);
           }
         } catch (e: unknown) {
@@ -462,6 +473,7 @@ export class QueueManager extends GuildIdManager<Queue> {
         crossfade: {
           duration: fade,
           primarySeek,
+          primaryStartTime,
           secondaryUrl: secondary.stream.url,
           inCurve: this.options.crossfade.curve,
           outCurve: this.options.crossfade.curve,

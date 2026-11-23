@@ -402,6 +402,21 @@ export type PreparedCrossfadeInput = {
    * input options, which are tuned for http(s) streaming urls.
    */
   inputArgs?: FFmpegArg;
+  /**
+   * The media timestamp (in seconds) the fading-out input is trimmed to
+   * before the fade begins.
+   *
+   * Some sources cannot start their stream at an arbitrary position: they
+   * begin at the closest boundary they support (a chunk of the file, for
+   * example), so the stream carries audio that was already played. The
+   * timestamp is the position of the fade boundary in the media's own
+   * timeline, and the input is trimmed to it, which drops that audio
+   * without losing a single frame of the fade window.
+   *
+   * It is a media timestamp, not an offset from the beginning of the
+   * stream: the input keeps its original timestamps while it is trimmed.
+   */
+  primaryStartTime?: number;
 };
 
 /**

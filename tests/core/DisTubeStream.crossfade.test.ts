@@ -152,6 +152,36 @@ describe("DisTubeStream crossfade", () => {
     expect(args.indexOf("-reconnect")).toBeLessThan(i2);
   });
 
+  it("trims the fading-out input to its media timestamp when the adapter asks for it", async () => {
+    const [, args] = await spawnArgs({
+      ...ffmpegOptions,
+      crossfade: {
+        ...crossfadeOptions,
+        primaryStartTime: 94,
+        primaryInputArgs: { analyzeduration: 0 },
+      },
+    });
+
+    // The trim is expressed in the input's own timeline, so its timestamps
+    // must survive instead of being normalized to zero.
+    const copyts = args.indexOf("-copyts");
+    expect(copyts).toBeGreaterThan(-1);
+    expect(copyts).toBeLessThan(args.indexOf("-i"));
+    // The audio before the timestamp is dropped from the fading-out input
+    const graph = args[args.indexOf("-filter_complex") + 1];
+    expect(graph).toContain("[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=start=94[a0]");
+    // The fading-in input is not trimmed
+    expect(graph).toContain("[1:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a1]");
+  });
+
+  it("keeps the timestamps untouched when no media timestamp is given", async () => {
+    const [, args] = await spawnArgs({ ...ffmpegOptions, crossfade: crossfadeOptions });
+
+    expect(args.indexOf("-copyts")).toBe(-1);
+    const graph = args[args.indexOf("-filter_complex") + 1];
+    expect(graph).not.toContain("atrim");
+  });
+
   it("converts a file url primary input into a plain local path", async () => {
     const { spawn } = await import("node:child_process");
     const stream = new DisTubeStream("file:///tmp/coz-xf-tail.m3u8", {
