@@ -111,11 +111,31 @@ export const DEFAULT_CROSSFADE_CURVE = "qsin";
  */
 export const DEFAULT_CROSSFADE_WARMUP_SECS = 5;
 /**
- * How far (in seconds) the playback position may drift from the expected
+ * How far (in seconds) the playback position may drift past the expected
  * crossfade boundary before the transition is aborted and the regular
  * song-switch takes over.
+ *
+ * Swapping a transition stream in after the boundary replays the audio
+ * between the boundary and the current position, so only a negligible late
+ * drift is accepted.
  */
 export const CROSSFADE_DRIFT_TOLERANCE_SECS = 0.75;
+/**
+ * How far (in seconds) before the boundary the media clock may be while still
+ * counting as reached. Absorbs the 20ms media-clock step and the polling
+ * interval, so a check that lands a frame early does not wait forever.
+ */
+export const CROSSFADE_SWAP_EPSILON_SECS = 0.05;
+/**
+ * How early (in milliseconds) the boundary timer is armed.
+ *
+ * `Queue#currentTime` follows the audio resource's media clock, while timers
+ * run on the wall clock. Arming the timer slightly early guarantees that a
+ * normal event-loop delay or a rounded song duration cannot make it fire
+ * after the boundary (which would replay audio). The swap then waits for the
+ * media clock to actually reach the boundary.
+ */
+export const CROSSFADE_BOUNDARY_LEAD_MS = 250;
 /**
  * How far (in seconds) the playback position may lag the fade boundary and
  * still be recovered by waiting for the media clock.
@@ -126,12 +146,12 @@ export const CROSSFADE_DRIFT_TOLERANCE_SECS = 0.75;
  * A small lag is harmless (the transition stream is already buffered), so the
  * swap waits for the media clock instead of aborting the crossfade.
  */
-export const CROSSFADE_RESYNC_WINDOW_SECS = 2;
+export const CROSSFADE_RESYNC_WINDOW_SECS = 3;
 /**
  * How long the crossfade swap may wait for a lagging media clock before it
  * falls back to the regular song transition.
  */
-export const CROSSFADE_RESYNC_TIMEOUT_MS = 3_000;
+export const CROSSFADE_RESYNC_TIMEOUT_MS = 4_000;
 /**
  * How often the media clock is checked while a crossfade swap is catching up.
  */

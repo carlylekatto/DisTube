@@ -1,10 +1,8 @@
 import type { GuildTextBasedChannel, VoiceBasedChannel } from "discord.js";
 import type { FFmpegArg, Song } from "../..";
 import {
-  CROSSFADE_DRIFT_TOLERANCE_SECS,
-  CROSSFADE_RESYNC_INTERVAL_MS,
+  CROSSFADE_BOUNDARY_LEAD_MS,
   CROSSFADE_RESYNC_TIMEOUT_MS,
-  CROSSFADE_RESYNC_WINDOW_SECS,
   checkFFmpeg,
   DisTubeError,
   DisTubeStream,
@@ -13,6 +11,7 @@ import {
   Queue,
   RepeatMode,
 } from "../..";
+import { resolveCrossfadeSync } from "../crossfadeSync";
 import { volumeToGain } from "../DisTubeVoice";
 import { GuildIdManager } from "./GuildIdManager";
 
@@ -479,6 +478,17 @@ export class QueueManager extends GuildIdManager<Queue> {
       // A newer schedule may have superseded this task while the adapter was
       // opening the source: spawning here would leak a second transition.
       if (crossfadeGeneration !== queue._crossfadeGeneration) return;
+      // Resolving the next stream may have taken long enough that the song
+      // reached the boundary while this task was waiting. Spawning a
+      // transition stream now would only open a source that the swap task
+      // immediately kills (and, on a SABR source, leave an abandoned session
+      // behind): let the regular transition take over instead.
+      const boundary = songDuration - fade;
+      const currentTime = queue.currentTime;
+      if (!Number.isFinite(currentTime) || currentTime >= boundary) {
+        this.debug(`[${queue.id}] Crossfade warm-up finished at the fade boundary, using the regular transition`);
+        return;
+      }
       transitionStream = new DisTubeStream(primaryUrl, {
         ffmpeg: {
           path: this.options.ffmpeg.path,
@@ -546,7 +556,7 @@ export class QueueManager extends GuildIdManager<Queue> {
       // the fade can begin without waiting for any network round-trip.
       transitionStream.spawn();
 
-      const boundaryMs = Math.max(0, (songDuration - queue.currentTime - fade) * 1000);
+      const boundaryMs = Math.max(0, (boundary - currentTime) * 1000 - CROSSFADE_BOUNDARY_LEAD_MS);
       queue._crossfadeTimeout = setTimeout(() => {
         queue._crossfadeTimeout = undefined;
         void this.#crossfadeSwapTask(queue, transitionStream!);
@@ -580,30 +590,26 @@ export class QueueManager extends GuildIdManager<Queue> {
       const songDuration = song.duration ?? 0;
       const fade = Math.min(Number(queue.crossfade) || 0, songDuration);
       if (fade <= 0) return abort();
-      // The playback position must be inside the fade window: on drift, fall
-      // back to the regular transition instead of miscalibrated audio.
+      // The transition stream starts at the fade boundary: swap it in when
+      // the media clock reaches that point, not when the wall-clock timer
+      // fires. See resolveCrossfadeSync() for the drift policy.
       const boundary = songDuration - fade;
-      const drift = queue.currentTime - boundary;
-      // A short lag is normal: the audio resource starts its playback clock
-      // after the first packet, and a network stall pauses it while the
-      // wall-clock boundary timer keeps running. The transition stream is
-      // already buffered, so wait for the media clock to reach the boundary
-      // instead of aborting the crossfade.
-      if (
-        drift < -CROSSFADE_DRIFT_TOLERANCE_SECS &&
-        drift >= -CROSSFADE_RESYNC_WINDOW_SECS &&
-        Date.now() < resyncDeadline
-      ) {
-        const waitMs = Math.min(CROSSFADE_RESYNC_INTERVAL_MS, Math.max(1, -drift * 1000));
+      const sync = resolveCrossfadeSync(queue.currentTime, boundary, Date.now(), resyncDeadline);
+      if (sync.action === "wait") {
         queue._crossfadeTimeout = setTimeout(() => {
           queue._crossfadeTimeout = undefined;
           void this.#crossfadeSwapTask(queue, transitionStream, resyncDeadline);
-        }, waitMs);
+        }, sync.waitMs);
         queue._crossfadeTimeout.unref?.();
         return;
       }
-      if (Math.abs(drift) > CROSSFADE_DRIFT_TOLERANCE_SECS) {
-        this.debug(`[${queue.id}] Crossfade aborted: playback drifted ${drift.toFixed(2)}s from the fade boundary`);
+      if (sync.action === "abort") {
+        const drift = queue.currentTime - boundary;
+        this.debug(
+          sync.reason === "invalid"
+            ? `[${queue.id}] Crossfade aborted: the playback position is unknown`
+            : `[${queue.id}] Crossfade aborted: playback drifted ${drift.toFixed(2)}s from the fade boundary`,
+        );
         return abort();
       }
 

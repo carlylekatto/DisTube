@@ -301,11 +301,53 @@ describe("QueueManager crossfade (playback simulation)", () => {
       // bounded, after the resync deadline the regular transition takes over.
       (queue.voice as any).playbackTime = 92.5;
       await vi.advanceTimersByTimeAsync(15_000);
-      await vi.advanceTimersByTimeAsync(3_500);
+      await vi.advanceTimersByTimeAsync(4_500);
 
       expect(voice.play).not.toHaveBeenCalledWith(transition);
       expect(transition.killed).toBe(true);
       expect(queue._crossfadeWarmup).toBeUndefined();
+      expect(queue.songs[0].id).toBe("song-1");
+    });
+
+    it("aborts the crossfade when the boundary timer fires too late", async () => {
+      const { queueManager, queue, voice } = createSimulatedQueue();
+      queue.crossfade = 6;
+
+      await queueManager.playSong(queue);
+      await vi.advanceTimersByTimeAsync(10_000);
+      const transition = asFake(queue._crossfadeWarmup);
+
+      // The event loop was blocked for a second: the transition stream starts
+      // at the boundary, so swapping it in now would replay a full second of
+      // the song that already played.
+      (queue.voice as any).playbackTime = 95;
+      await vi.advanceTimersByTimeAsync(15_000);
+
+      expect(voice.play).not.toHaveBeenCalledWith(transition);
+      expect(transition.killed).toBe(true);
+      expect(queue._crossfadeWarmup).toBeUndefined();
+      expect(queue.songs[0].id).toBe("song-1");
+    });
+
+    it("does not spawn a transition stream when the boundary passes during preparation", async () => {
+      const { mockDisTube, queueManager, queue } = createSimulatedQueue({
+        preload: { enabled: false, threshold: 15 },
+      });
+      queue.crossfade = 6;
+      // Resolving the next song is slow enough for the current song to reach
+      // the boundary: opening a transition source now would be wasted (and a
+      // SABR source would leave a session behind).
+      const attach = mockDisTube.handler.attachStreamInfo;
+      attach.mockImplementation(async (song: Song) => {
+        song.stream = { ...song.stream, playFromSource: true, url: `https://example.com/${song.id}` };
+        if (song.id === "song-2") (queue.voice as any).playbackTime = 94;
+      });
+
+      await queueManager.playSong(queue);
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      expect(queue._crossfadeWarmup).toBeUndefined();
+      expect(streams.filter(stream => stream.options.crossfade)).toHaveLength(0);
       expect(queue.songs[0].id).toBe("song-1");
     });
 
