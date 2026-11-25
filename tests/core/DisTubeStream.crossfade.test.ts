@@ -84,7 +84,7 @@ describe("DisTubeStream crossfade", () => {
     // Normalization + fade graph
     const graph = args[args.indexOf("-filter_complex") + 1];
     expect(graph).toBe(
-      "[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a0];" +
+      "[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,apad=whole_dur=6[a0];" +
         "[1:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a1];" +
         "[a0][a1]acrossfade=d=6:c1=qsin:c2=qsin,alimiter=limit=0.95:attack=5:release=50:level=disabled[xf]",
     );
@@ -167,9 +167,14 @@ describe("DisTubeStream crossfade", () => {
     const copyts = args.indexOf("-copyts");
     expect(copyts).toBeGreaterThan(-1);
     expect(copyts).toBeLessThan(args.indexOf("-i"));
-    // The audio before the timestamp is dropped from the fading-out input
+    // The audio before the timestamp is dropped from the fading-out input,
+    // then the trimmed tail is padded to the fade duration. A tail shorter
+    // than the fade (the media ends before the rounded song duration) would
+    // otherwise make `acrossfade` emit no frame at all.
     const graph = args[args.indexOf("-filter_complex") + 1];
-    expect(graph).toContain("[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=start=94[a0]");
+    expect(graph).toContain(
+      "[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=start=94,apad=whole_dur=6[a0]",
+    );
     // The fading-in input is not trimmed
     expect(graph).toContain("[1:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a1]");
   });

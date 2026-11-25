@@ -323,7 +323,15 @@ export class DisTubeStream extends TypedEmitter<{
     const normalize = `aresample=${AUDIO_SAMPLE_RATE},aformat=sample_fmts=fltp:channel_layouts=stereo`;
     // A source that starts at a fixed boundary carries audio that was already
     // played: it is trimmed to the fade boundary before the fade.
-    const primaryChain = trimStart !== undefined ? `${normalize},atrim=start=${trimStart}` : normalize;
+    // The trimmed input must still last the whole fade. The reported song
+    // duration is rounded to the second, while the media is not: when the
+    // media ends slightly before `boundary + duration`, `acrossfade` receives
+    // fewer than `duration` seconds on its first input and emits no frame at
+    // all, which makes the transition look like a dead stream. Pad the
+    // trimmed input with silence up to the fade duration: a short tail then
+    // fades out instead of aborting the crossfade. The pad is applied after
+    // the trim, otherwise the audio before the boundary would satisfy it.
+    const primaryChain = `${normalize}${trimStart !== undefined ? `,atrim=start=${trimStart}` : ""},apad=whole_dur=${duration}`;
     const fade = `[a0][a1]acrossfade=d=${duration}:c1=${outCurve}:c2=${inCurve},alimiter=limit=0.95:attack=5:release=50:level=disabled[xf]`;
     const graph = [
       `[0:a]${primaryChain}[a0]`,
