@@ -116,6 +116,26 @@ export const DEFAULT_CROSSFADE_WARMUP_SECS = 5;
  * song-switch takes over.
  */
 export const CROSSFADE_DRIFT_TOLERANCE_SECS = 0.75;
+/**
+ * How far (in seconds) the playback position may lag the fade boundary and
+ * still be recovered by waiting for the media clock.
+ *
+ * `Queue#currentTime` follows the audio resource's playback duration, while
+ * the boundary timer is wall-clock based: initial buffering or a short network
+ * stall makes the timer fire before the song actually reaches the boundary.
+ * A small lag is harmless (the transition stream is already buffered), so the
+ * swap waits for the media clock instead of aborting the crossfade.
+ */
+export const CROSSFADE_RESYNC_WINDOW_SECS = 2;
+/**
+ * How long the crossfade swap may wait for a lagging media clock before it
+ * falls back to the regular song transition.
+ */
+export const CROSSFADE_RESYNC_TIMEOUT_MS = 3_000;
+/**
+ * How often the media clock is checked while a crossfade swap is catching up.
+ */
+export const CROSSFADE_RESYNC_INTERVAL_MS = 100;
 
 /**
  * The default options of a {@link DisTube} instance.

@@ -263,6 +263,52 @@ describe("QueueManager crossfade (playback simulation)", () => {
       expect(queue.previousSongs).toHaveLength(0);
     });
 
+    it("waits for a slightly lagging media clock instead of aborting the crossfade", async () => {
+      const { queueManager, queue, voice } = createSimulatedQueue();
+      queue.crossfade = 6;
+
+      await queueManager.playSong(queue);
+      await vi.advanceTimersByTimeAsync(10_000);
+      const transition = asFake(queue._crossfadeWarmup);
+      expect(transition.spawn).toHaveBeenCalled();
+
+      // The boundary timer fires while the audio resource is 1s behind: a
+      // short buffering stall must not discard the warmed-up transition.
+      (queue.voice as any).playbackTime = 93;
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(voice.play).not.toHaveBeenCalledWith(transition);
+      expect(transition.killed).toBe(false);
+      expect(queue._crossfadeWarmup).toBe(transition);
+
+      // The media clock reaches the boundary: the transition is swapped in.
+      (queue.voice as any).playbackTime = 94;
+      await vi.advanceTimersByTimeAsync(200);
+
+      expect(voice.play).toHaveBeenLastCalledWith(transition);
+      expect(queue._crossfadeWarmup).toBeUndefined();
+      expect(queue.songs[0].id).toBe("song-2");
+    });
+
+    it("aborts the crossfade when the media clock never reaches the boundary", async () => {
+      const { queueManager, queue, voice } = createSimulatedQueue();
+      queue.crossfade = 6;
+
+      await queueManager.playSong(queue);
+      await vi.advanceTimersByTimeAsync(10_000);
+      const transition = asFake(queue._crossfadeWarmup);
+
+      // 1.5s behind the boundary and the media clock is stalled: waiting is
+      // bounded, after the resync deadline the regular transition takes over.
+      (queue.voice as any).playbackTime = 92.5;
+      await vi.advanceTimersByTimeAsync(15_000);
+      await vi.advanceTimersByTimeAsync(3_500);
+
+      expect(voice.play).not.toHaveBeenCalledWith(transition);
+      expect(transition.killed).toBe(true);
+      expect(queue._crossfadeWarmup).toBeUndefined();
+      expect(queue.songs[0].id).toBe("song-1");
+    });
+
     it("cancels the crossfade when the queue is paused during the fade window", async () => {
       const { queueManager, queue, voice } = createSimulatedQueue();
       queue.crossfade = 6;

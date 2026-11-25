@@ -2,6 +2,9 @@ import type { GuildTextBasedChannel, VoiceBasedChannel } from "discord.js";
 import type { FFmpegArg, Song } from "../..";
 import {
   CROSSFADE_DRIFT_TOLERANCE_SECS,
+  CROSSFADE_RESYNC_INTERVAL_MS,
+  CROSSFADE_RESYNC_TIMEOUT_MS,
+  CROSSFADE_RESYNC_WINDOW_SECS,
   checkFFmpeg,
   DisTubeError,
   DisTubeStream,
@@ -561,7 +564,11 @@ export class QueueManager extends GuildIdManager<Queue> {
    * Swap the playing stream for the merged transition stream and update the
    * queue as if the current song had just finished.
    */
-  async #crossfadeSwapTask(queue: Queue, transitionStream: DisTubeStream) {
+  async #crossfadeSwapTask(
+    queue: Queue,
+    transitionStream: DisTubeStream,
+    resyncDeadline = Date.now() + CROSSFADE_RESYNC_TIMEOUT_MS,
+  ) {
     const abort = () => {
       if (queue._crossfadeWarmup === transitionStream) queue._crossfadeWarmup = undefined;
       transitionStream.kill();
@@ -575,7 +582,26 @@ export class QueueManager extends GuildIdManager<Queue> {
       if (fade <= 0) return abort();
       // The playback position must be inside the fade window: on drift, fall
       // back to the regular transition instead of miscalibrated audio.
-      const drift = queue.currentTime - (songDuration - fade);
+      const boundary = songDuration - fade;
+      const drift = queue.currentTime - boundary;
+      // A short lag is normal: the audio resource starts its playback clock
+      // after the first packet, and a network stall pauses it while the
+      // wall-clock boundary timer keeps running. The transition stream is
+      // already buffered, so wait for the media clock to reach the boundary
+      // instead of aborting the crossfade.
+      if (
+        drift < -CROSSFADE_DRIFT_TOLERANCE_SECS &&
+        drift >= -CROSSFADE_RESYNC_WINDOW_SECS &&
+        Date.now() < resyncDeadline
+      ) {
+        const waitMs = Math.min(CROSSFADE_RESYNC_INTERVAL_MS, Math.max(1, -drift * 1000));
+        queue._crossfadeTimeout = setTimeout(() => {
+          queue._crossfadeTimeout = undefined;
+          void this.#crossfadeSwapTask(queue, transitionStream, resyncDeadline);
+        }, waitMs);
+        queue._crossfadeTimeout.unref?.();
+        return;
+      }
       if (Math.abs(drift) > CROSSFADE_DRIFT_TOLERANCE_SECS) {
         this.debug(`[${queue.id}] Crossfade aborted: playback drifted ${drift.toFixed(2)}s from the fade boundary`);
         return abort();
