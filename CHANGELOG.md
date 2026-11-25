@@ -5,6 +5,18 @@ All the notable changes of DisTube are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.2.11]
+
+### Fixed
+
+- The crossfade swap is synchronized with the media clock instead of the wall clock: the
+  transition stream now starts at the fade boundary. A boundary timer that fired early skipped
+  audio, and one that fired late replayed audio; the swap now waits (bounded to 4 seconds) for the
+  media clock to reach the boundary and only falls back when the playback is stalled.
+- A crossfade transition stream is no longer spawned when resolving the next song takes longer than
+  the remaining time before the fade: the stream was killed immediately, which also left an
+  abandoned source session (notably a SABR session) behind.
+
 ## [6.2.10]
 
 ### Fixed
