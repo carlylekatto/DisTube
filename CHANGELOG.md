@@ -5,6 +5,17 @@ All the notable changes of DisTube are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.2.10]
+
+### Fixed
+
+- Crossfade scheduling is idempotent: arming the same schedule twice (the library right after
+  `playSong`, the bot after loading the guild settings) no longer cancels the first warm-up and
+  spawns a second transition stream and its sources.
+- The fading-out crossfade input is padded with silence to the fade duration: when the media ended
+  slightly before the rounded song duration, `acrossfade` received less than the fade duration and
+  emitted no frame, which aborted the transition as "not ready".
+
 ## [6.2.9]
 
 ### Added
