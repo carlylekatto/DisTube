@@ -255,7 +255,7 @@ The plugin API got a new shape, and the API that was deprecated in v5.2 is gone.
   subclass.
 - The init of a plugin can be asynchronous. A failure is reported as a warning instead of crashing
   the process.
-- `@discordjs/voice` is pinned to `^0.19.0`, and DAVE encryption is enabled explicitly.
+- `@discordjs/voice` requires 0.19.1 or later, and DAVE encryption is enabled explicitly.
 
 ### Fixed
 

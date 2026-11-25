@@ -1,8 +1,8 @@
 <div align="center">
   <p>
     <a href="https://github.com/carlylekatto/DisTube/actions" target="_blank"><img alt="GitHub Workflow Status" src="https://img.shields.io/github/actions/workflow/status/carlylekatto/DisTube/test.yml?branch=main&label=Tests&logo=github&style=flat-square" /></a>
-    <a href="https://nodejs.org/" target="_blank"><img alt="node-current" src="https://img.shields.io/node/v/distube?logo=node.js&logoColor=white&style=flat-square"/></a>
-    <a href="https://discord.js.org/" target="_blank"><img alt="npm peer dependency version" src="https://img.shields.io/npm/dependency-version/distube/peer/discord.js?label=discord.js&logo=discord&logoColor=white&style=flat-square"/></a>
+    <a href="https://nodejs.org/" target="_blank"><img alt="node-current" src="https://img.shields.io/node/v/@kattowo/distube?logo=node.js&logoColor=white&style=flat-square"/></a>
+    <a href="https://discord.js.org/" target="_blank"><img alt="npm peer dependency version" src="https://img.shields.io/npm/dependency-version/@kattowo/distube/peer/discord.js?label=discord.js&logo=discord&logoColor=white&style=flat-square"/></a>
     <br/>
     <a href="https://github.com/carlylekatto/DisTube/stargazers" target="_blank"><img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/carlylekatto/DisTube?logo=github&logoColor=white&style=flat-square"/></a>
     <a href="https://discord.gg/feaDd9h" target="_blank"><img alt="Discord" src="https://img.shields.io/discord/732254550689316914?logo=discord&logoColor=white&style=flat-square"/></a>
@@ -11,8 +11,8 @@
 
 # DisTube
 
-DisTube plays music in a Discord bot. It handles the voice connection, the queue, the audio filters
-and the sources, so a bot only has to deal with its own commands.
+DisTube plays music in a Discord bot. It handles the voice connection, the queue, the crossfade,
+the audio filters and the sources, so a bot only has to deal with its own commands.
 
 ## This fork
 
@@ -20,9 +20,9 @@ This repository is a fork of [skick1234/DisTube](https://github.com/skick1234/Di
 is built here, and the two lines part ways from here: the plugin API, the stream server and the
 errors of the plugins belong to this fork.
 
-Fixes that every user needs are still sent upstream as pull requests, so both lines get them. There
-is one so far, [#353](https://github.com/skick1234/DisTube/pull/353), which turns on the DAVE
-encryption that Discord made mandatory in March 2026.
+Fixes that every user needs are still sent upstream as pull requests, so both lines get them.
+[#353](https://github.com/skick1234/DisTube/pull/353) is merged: it turns on the DAVE encryption
+that Discord made mandatory in March 2026.
 - [The documentation of the fork](https://carlylekatto.github.io/distube-website/)
 - [The changelog](./CHANGELOG.md)
 - [Publishing the fork](./PUBLISHING.md)
@@ -33,6 +33,9 @@ encryption that Discord made mandatory in March 2026.
 - FFmpeg on the PATH
 - discord.js 14
 - @discordjs/voice 0.19.1 or later
+
+`@discordjs/voice` 0.19.1 or later is required for the DAVE end-to-end encryption that Discord made
+mandatory in March 2026. DisTube enables it on every voice connection.
 
 ## Install
 
@@ -81,6 +84,20 @@ client.login("TOKEN");
 
 The shortcut methods are gone in v6. `distube.pause(guild)` becomes `distube.getQueue(guild).pause()`.
 The changelog lists every removal.
+
+## Crossfade
+
+A queue can blend the end of a song into the start of the next one with a single FFmpeg
+`acrossfade` transition. It is off by default:
+
+```javascript
+const distube = new DisTube(client, {
+  crossfade: { duration: 6 },
+});
+```
+
+The [crossfade guide](https://carlylekatto.github.io/distube-website/guide/crossfade/) covers the
+curves, the warm-up and the per-guild control.
 
 ## The plugins
 
