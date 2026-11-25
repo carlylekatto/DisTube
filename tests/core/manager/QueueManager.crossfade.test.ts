@@ -389,6 +389,26 @@ describe("QueueManager crossfade (playback simulation)", () => {
       expect(warmup.options.crossfade).toMatchObject({ duration: 6, secondaryUrl: "https://example.com/song-2" });
     });
 
+    it("cancels the warm-up and re-arms from the new position after a seek", async () => {
+      const { queueManager, queue, voice } = createSimulatedQueue();
+      queue.crossfade = 6;
+      await queueManager.playSong(queue);
+      await vi.advanceTimersByTimeAsync(10_000);
+      const transition = asFake(queue._crossfadeWarmup);
+      expect(transition.spawn).toHaveBeenCalled();
+
+      // The restarted stream starts at the seek position.
+      voice.play.mockImplementation(async (stream: { seekTime?: number }) => {
+        (voice as any).playbackTime = stream.seekTime ?? 0;
+      });
+      await queue.seek(50);
+
+      expect(transition.killed).toBe(true);
+      expect(queue._crossfadeWarmup).toBeUndefined();
+      // remaining = 50s, fade = 6s, warmup = 5s: a fresh schedule is armed
+      expect(queue._crossfadeTimeout).toBeDefined();
+    });
+
     it("fades a repeat-song queue into the same song without shifting it", async () => {
       const { mockDisTube, queueManager, queue, voice, song1 } = createSimulatedQueue();
       queue.crossfade = 6;
