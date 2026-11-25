@@ -142,6 +142,21 @@ export class Queue extends DisTubeBase {
    */
   _crossfadeWarmup?: DisTubeStream;
   /**
+   * Fingerprint of the crossfade schedule that is currently armed or warming
+   * up. A second caller that asks for the same schedule must not cancel and
+   * restart it: at a zero delay the restart would spawn a second transition
+   * stream before the first one has stored itself on the queue.
+   * @internal
+   */
+  _crossfadeKey?: string;
+  /**
+   * Bumped whenever a crossfade schedule is armed or cancelled. A warm-up task
+   * captures it before its first await so a superseded task can stop before it
+   * spawns another transition stream.
+   * @internal
+   */
+  _crossfadeGeneration = 0;
+  /**
    * Clear any preloaded song and cancel pending preload timer.
    * @internal
    */
@@ -163,6 +178,7 @@ export class Queue extends DisTubeBase {
    * @internal
    */
   _crossfadeCancel() {
+    this._crossfadeGeneration++;
     if (this._crossfadeTimeout) {
       clearTimeout(this._crossfadeTimeout);
       this._crossfadeTimeout = undefined;

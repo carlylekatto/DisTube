@@ -164,6 +164,60 @@ describe("QueueManager crossfade (playback simulation)", () => {
       expect(transition.setVolume).toHaveBeenCalledWith(volumeToGain(50));
     });
 
+    it("does not spawn a second transition when the same schedule is armed twice", async () => {
+      const { queueManager, queue, song1 } = createSimulatedQueue();
+      song1.stream = { playFromSource: true, url: "https://example.com/song-1" };
+      queue.crossfade = 6;
+      // remaining = 10s, fade = 6s, warm-up = 5s → the warm-up is due now.
+      (queue.voice as any).playbackTime = 90;
+
+      queueManager.scheduleCrossfade(queue);
+      queueManager.scheduleCrossfade(queue);
+      expect(vi.getTimerCount()).toBe(1);
+
+      await vi.advanceTimersByTimeAsync(1);
+
+      const transitions = streams.filter(stream => stream.options.crossfade);
+      expect(transitions).toHaveLength(1);
+      expect(transitions[0].spawn).toHaveBeenCalledTimes(1);
+    });
+
+    it("a newer schedule stops a warm-up that is still preparing", async () => {
+      const { queueManager, queue, song1 } = createSimulatedQueue();
+      song1.stream = { playFromSource: true, url: "https://example.com/song-1" };
+      queue.crossfade = 6;
+      (queue.voice as any).playbackTime = 91;
+
+      let releasePreload: () => void = () => {};
+      const gate = new Promise<void>(resolve => {
+        releasePreload = resolve;
+      });
+      const preload = queueManager.preloadNextSong.bind(queueManager);
+      const spy = vi.spyOn(queueManager, "preloadNextSong").mockImplementation(async target => {
+        await gate;
+        return preload(target);
+      });
+
+      try {
+        queueManager.scheduleCrossfade(queue);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(spy).toHaveBeenCalledTimes(1);
+
+        // The fade changed while the first task was still opening the source.
+        queue.crossfade = 4;
+        queueManager.scheduleCrossfade(queue);
+        releasePreload();
+        await vi.advanceTimersByTimeAsync(1);
+
+        const transitions = streams.filter(stream => stream.options.crossfade);
+        expect(transitions).toHaveLength(1);
+        expect(transitions[0].options.crossfade).toMatchObject({ duration: 4 });
+      } finally {
+        releasePreload();
+        spy.mockRestore();
+      }
+    });
+
     it("falls back to the regular transition when the warmed-up stream has no audio yet", async () => {
       const { queueManager, queue, voice } = createSimulatedQueue();
       queue.crossfade = 6;

@@ -367,29 +367,39 @@ export class QueueManager extends GuildIdManager<Queue> {
    * @param queue - The guild queue
    */
   scheduleCrossfade(queue: Queue) {
-    queue._crossfadeCancel();
-    if (queue.stopped || queue.paused) return;
+    const cancel = () => queue._crossfadeCancel();
+    if (queue.stopped || queue.paused) return cancel();
     const currentSong = queue.songs[0];
-    if (!currentSong) return;
+    if (!currentSong) return cancel();
     const songDuration = currentSong.duration ?? 0;
     // Live songs have an unknown duration: they cannot be crossfaded.
-    if (!songDuration || !Number.isFinite(songDuration)) return;
+    if (!songDuration || !Number.isFinite(songDuration)) return cancel();
     const fade = Math.min(Number(queue.crossfade) || 0, songDuration);
-    if (fade <= 0) return;
+    if (fade <= 0) return cancel();
     const nextSong = queue.repeatMode === RepeatMode.SONG ? currentSong : queue.songs[1];
-    if (!nextSong) return;
+    if (!nextSong) return cancel();
     const currentTime = queue.currentTime;
-    if (!Number.isFinite(currentTime)) return;
+    if (!Number.isFinite(currentTime)) return cancel();
     const remaining = songDuration - currentTime;
-    if (remaining <= fade) return;
+    if (remaining <= fade) return cancel();
     const warmup = this.options.crossfade?.warmup ?? 5;
     const delayMs = Math.max(0, (remaining - fade - warmup) * 1000);
+    // The same schedule is often requested twice: the library arms it right
+    // after playSong, and the bot re-arms it once the guild settings are loaded.
+    // Re-arming an identical schedule cancels a warm-up that is already running
+    // (or, at a zero delay, races with the task before it stores itself on the
+    // queue) and spawns a second transition stream and its sources.
+    const key = `${currentSong.id}:${nextSong.id}:${fade}:${songDuration}:${queue.repeatMode}:${queue._preloadGeneration}`;
+    if (queue._crossfadeKey === key && (queue._crossfadeTimeout || queue._crossfadeWarmup)) return;
+    cancel();
+    queue._crossfadeKey = key;
+    const crossfadeGeneration = queue._crossfadeGeneration;
     this.debug(
       `[${queue.id}] Scheduling crossfade (${fade}s fade) in ${(delayMs / 1000).toFixed(1)}s: ${currentSong} -> ${nextSong}`,
     );
     queue._crossfadeTimeout = setTimeout(() => {
       queue._crossfadeTimeout = undefined;
-      void this.#crossfadeWarmupTask(queue);
+      void this.#crossfadeWarmupTask(queue, crossfadeGeneration);
     }, delayMs);
     queue._crossfadeTimeout.unref?.();
   }
@@ -399,9 +409,10 @@ export class QueueManager extends GuildIdManager<Queue> {
    * its inputs are buffered when the fade must start, then arm the boundary
    * timer that swaps the playback stream.
    */
-  async #crossfadeWarmupTask(queue: Queue) {
+  async #crossfadeWarmupTask(queue: Queue, crossfadeGeneration: number) {
     let transitionStream: DisTubeStream | undefined;
     try {
+      if (crossfadeGeneration !== queue._crossfadeGeneration) return;
       if (queue.stopped || queue.paused) return;
       const song = queue.songs[0];
       const generation = queue._preloadGeneration;
@@ -419,6 +430,7 @@ export class QueueManager extends GuildIdManager<Queue> {
         if (this.options.preload.enabled) await this.preloadNextSong(queue);
         else await this.handler.attachStreamInfo(nextSong);
       }
+      if (crossfadeGeneration !== queue._crossfadeGeneration) return;
       if (queue.stopped || queue.paused || queue.songs[0] !== song || generation !== queue._preloadGeneration) return;
       if (repeatSong ? queue.songs[0] !== song : queue.songs[1] !== nextSong) return;
 
@@ -461,6 +473,9 @@ export class QueueManager extends GuildIdManager<Queue> {
           this.debug(`[${queue.id}] Crossfade primary input preparation failed: ${errorMessage}`);
         }
       }
+      // A newer schedule may have superseded this task while the adapter was
+      // opening the source: spawning here would leak a second transition.
+      if (crossfadeGeneration !== queue._crossfadeGeneration) return;
       transitionStream = new DisTubeStream(primaryUrl, {
         ffmpeg: {
           path: this.options.ffmpeg.path,
